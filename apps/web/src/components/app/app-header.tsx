@@ -23,9 +23,9 @@ export function AppHeader({ user }: { user: { name: string; email: string } }) {
         <div className="ml-auto flex items-center gap-3">
           <Link
             href="/requests/new"
-            className="group hidden h-9 items-center gap-2 rounded-full bg-foreground py-1 pr-4 pl-1 text-[13.5px] font-medium text-background shadow-[0_1px_2px_rgb(0_0_0/0.15)] transition-all duration-200 ease-(--ease-apple) hover:shadow-[0_4px_14px_-4px_rgb(0_0_0/0.35)] focus-visible:ring-4 focus-visible:ring-ring/25 focus-visible:outline-none active:scale-[0.97] md:inline-flex"
+            className="group hidden h-9 items-center gap-2 rounded-full bg-primary py-1 pr-4 pl-1 text-[13.5px] font-medium text-primary-foreground shadow-[0_1px_2px_rgb(0_113_227/0.25)] transition-all duration-200 ease-(--ease-apple) hover:bg-primary/90 hover:shadow-[0_4px_14px_-4px_rgb(0_113_227/0.5)] focus-visible:ring-4 focus-visible:ring-ring/25 focus-visible:outline-none active:scale-[0.97] md:inline-flex"
           >
-            <span className="flex size-7 items-center justify-center rounded-full bg-background/15 transition-transform duration-300 ease-(--ease-apple) group-hover:rotate-90">
+            <span className="flex size-7 items-center justify-center rounded-full bg-white/20 transition-transform duration-300 ease-(--ease-apple) group-hover:rotate-90">
               <Plus className="size-4" strokeWidth={2.25} aria-hidden />
             </span>
             New request

@@ -4,7 +4,7 @@ import { TEST_BRANDS } from '../testing/brands';
 import { fallbackStartRoute } from './pick';
 import { searchBrands, matchBrand, normalizeBrandText } from './brands';
 import { buildSections, F, missingRequired, requiredCount } from './sections';
-import { suggestWorkType } from './suggest';
+import { fallbackTypeSuggestion, normalizeTypeSuggestion, suggestWorkType } from './suggest';
 import { fieldId, getWorkType, orderedWorkTypes, WORK_TYPES } from './work-types';
 
 describe('work types', () => {
@@ -92,6 +92,57 @@ describe('suggestWorkType', () => {
   });
   it('returns null when nothing matches', () => {
     expect(suggestWorkType('hello there')).toBeNull();
+  });
+});
+
+describe('type suggestion', () => {
+  it('falls back to keywords as "likely", and to "unclear" without a match', () => {
+    expect(fallbackTypeSuggestion('A retractable banner for Pizza Expo')).toMatchObject({
+      workType: 'event',
+      confidence: 'likely',
+      question: null,
+    });
+    expect(fallbackTypeSuggestion('Update the existing sell sheet for 2027')).toMatchObject({
+      workType: 'sell',
+      mode: 'update',
+    });
+    expect(fallbackTypeSuggestion('hello there')).toMatchObject({
+      workType: null,
+      confidence: 'unclear',
+      question: null,
+    });
+  });
+  it('drops unknown ids and keeps the decision consistent', () => {
+    expect(
+      normalizeTypeSuggestion({
+        workType: 'nope',
+        confidence: 'sure',
+        alternatives: ['sell', 'nope', 'sell'],
+        mode: null,
+        reason: '',
+        question: 'Which one?',
+      }),
+    ).toMatchObject({
+      workType: null,
+      confidence: 'unclear',
+      alternatives: ['sell'],
+      question: 'Which one?',
+    });
+    expect(
+      normalizeTypeSuggestion({
+        workType: 'sell',
+        confidence: 'unclear',
+        alternatives: ['sell', 'deck'],
+        mode: 'update',
+        reason: '',
+        question: 'Which?',
+      }),
+    ).toMatchObject({
+      workType: 'sell',
+      confidence: 'likely',
+      alternatives: ['deck'],
+      question: null,
+    });
   });
 });
 

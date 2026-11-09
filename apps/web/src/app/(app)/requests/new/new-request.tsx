@@ -1,10 +1,10 @@
 'use client';
 
 import {
+  getWorkType,
   orderedWorkTypes,
-  suggestWorkType,
   type RequestMode,
-  type TypeSuggestion,
+  type TypeSuggestionResult,
   type WorkType,
 } from '@creative-hub/core';
 import { ArrowRight, ChevronDown, Layers, Loader2, Sparkles } from 'lucide-react';
@@ -16,7 +16,7 @@ import { REQUEST_STEPS } from '@/components/request/steps';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
-import { createDraft } from '../actions';
+import { createDraft, suggestRequestType } from '../actions';
 
 const TYPES = orderedWorkTypes();
 const TOP = TYPES.filter((t) => t.group === 'top');
@@ -26,7 +26,13 @@ const CAMPAIGN = TYPES.find((t) => t.group === 'special')!;
 export function NewRequest() {
   const [mode, setMode] = useState<RequestMode>('new');
   const [notes, setNotes] = useState('');
-  const [suggestion, setSuggestion] = useState<TypeSuggestion | null | undefined>();
+  const [suggestion, setSuggestion] = useState<TypeSuggestionResult>();
+  const [suggestError, setSuggestError] = useState<string>();
+  const [demo, setDemo] = useState(false);
+  const [answer, setAnswer] = useState('');
+  // The question already answered: the model gets one question, then it has to decide.
+  const [answered, setAnswered] = useState(false);
+  const [suggesting, startSuggest] = useTransition();
   const [pendingType, setPendingType] = useState<string>();
   const [, startTransition] = useTransition();
   const [notCreativeOpen, setNotCreativeOpen] = useState(false);
@@ -35,6 +41,28 @@ export function NewRequest() {
     setPendingType(type.id);
     startTransition(async () => {
       await createDraft({ typeId: type.id, mode, notes: notes.trim() || undefined });
+    });
+  }
+
+  function resetSuggestion() {
+    setSuggestion(undefined);
+    setSuggestError(undefined);
+    setAnswer('');
+    setAnswered(false);
+  }
+
+  function suggest(followUp?: { question: string; answer: string }) {
+    setSuggestError(undefined);
+    startSuggest(async () => {
+      const res = await suggestRequestType({ notes: notes.trim(), followUp });
+      if (!res.ok) {
+        setSuggestError(res.error);
+        return;
+      }
+      setSuggestion(res.suggestion);
+      setDemo(res.demo);
+      if (res.suggestion.mode) setMode(res.suggestion.mode);
+      if (followUp) setAnswered(true);
     });
   }
 
@@ -71,7 +99,7 @@ export function NewRequest() {
           value={notes}
           onChange={(e) => {
             setNotes(e.target.value);
-            setSuggestion(undefined);
+            resetSuggestion();
           }}
           rows={3}
           placeholder="Describe what you need or paste your notes, e.g. “We need a retractable banner for Pizza Expo in Las Vegas, showing three foodservice products.”"
@@ -85,7 +113,8 @@ export function NewRequest() {
             size="sm"
             className="ml-auto"
             disabled={notes.trim().length < 8}
-            onClick={() => setSuggestion(suggestWorkType(notes))}
+            loading={suggesting}
+            onClick={() => suggest()}
           >
             <Sparkles aria-hidden />
             Suggest a type
@@ -94,33 +123,55 @@ export function NewRequest() {
       </motion.section>
 
       <AnimatePresence>
-        {suggestion !== undefined && (
+        {(suggestion || suggestError) && (
           <motion.div
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
             className="overflow-hidden"
           >
-            <div className="mt-4 flex flex-col gap-4 rounded-3xl border border-primary/20 bg-accent/60 p-5 sm:flex-row sm:items-center">
-              {suggestion ? (
-                <>
-                  <div className="flex-1">
-                    <div className="text-xs font-semibold tracking-wide text-accent-foreground uppercase">
-                      Suggested · {suggestion.type.code}
-                    </div>
-                    <div className="mt-1 text-[17px] font-semibold">{suggestion.type.name}</div>
-                    <div className="mt-0.5 text-[15px] text-muted-foreground">
-                      Your notes mention {suggestion.matched.map((m) => `“${m}”`).join(', ')}.
-                    </div>
+            <div className="mt-4 rounded-3xl border border-primary/20 bg-accent/60 p-5">
+              {suggestError ? (
+                <p className="text-[15px]">{suggestError}</p>
+              ) : suggestion?.workType ? (
+                <SuggestedType
+                  suggestion={suggestion}
+                  demo={demo}
+                  pending={pendingType}
+                  onPick={start}
+                />
+              ) : suggestion?.question && !answered ? (
+                <form
+                  className="flex flex-col gap-3"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    const a = answer.trim();
+                    if (a && suggestion.question)
+                      suggest({ question: suggestion.question, answer: a });
+                  }}
+                >
+                  <div className="text-xs font-semibold tracking-wide text-accent-foreground uppercase">
+                    One quick question
                   </div>
-                  <Button
-                    onClick={() => start(suggestion.type)}
-                    loading={pendingType === suggestion.type.id}
-                  >
-                    Use this type
-                    <ArrowRight aria-hidden />
-                  </Button>
-                </>
+                  <p className="text-[17px] font-medium">{suggestion.question}</p>
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <input
+                      value={answer}
+                      onChange={(e) => setAnswer(e.target.value)}
+                      autoFocus
+                      aria-label="Your answer"
+                      placeholder="Your answer"
+                      className="h-11 flex-1 rounded-full border border-input bg-background px-4 text-[15px] outline-none focus-visible:ring-4 focus-visible:ring-ring/25"
+                    />
+                    <Button type="submit" disabled={!answer.trim()} loading={suggesting}>
+                      Answer
+                      <ArrowRight aria-hidden />
+                    </Button>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Or pick a type below — your notes come with you.
+                  </p>
+                </form>
               ) : (
                 <p className="text-[15px]">
                   We couldn’t tell the type from your notes. Pick the closest one below — your notes
@@ -244,6 +295,59 @@ export function NewRequest() {
         </AnimatePresence>
       </section>
     </main>
+  );
+}
+
+function SuggestedType({
+  suggestion,
+  demo,
+  pending,
+  onPick,
+}: {
+  suggestion: TypeSuggestionResult;
+  demo: boolean;
+  pending?: string;
+  onPick: (t: WorkType) => void;
+}) {
+  const type = getWorkType(suggestion.workType!)!;
+  const alternatives = suggestion.alternatives
+    .map((id) => getWorkType(id))
+    .filter((t): t is WorkType => !!t);
+  return (
+    <>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+        <div className="flex-1">
+          <div className="text-xs font-semibold tracking-wide text-accent-foreground uppercase">
+            {suggestion.confidence === 'sure' ? 'Suggested' : 'Best match'} · {type.code}
+          </div>
+          <div className="mt-1 text-[17px] font-semibold">{type.name}</div>
+          <div className="mt-0.5 text-[15px] text-muted-foreground">
+            {suggestion.reason}
+            {demo && ' (Demo: matched by keywords, AI isn’t connected.)'}
+          </div>
+        </div>
+        <Button onClick={() => onPick(type)} loading={pending === type.id}>
+          Use this type
+          <ArrowRight aria-hidden />
+        </Button>
+      </div>
+      {alternatives.length > 0 && (
+        <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-primary/10 pt-4 text-[15px]">
+          <span className="mr-1 text-muted-foreground">Or maybe:</span>
+          {alternatives.map((t) => (
+            <Button
+              key={t.id}
+              variant="outline"
+              size="sm"
+              onClick={() => onPick(t)}
+              loading={pending === t.id}
+            >
+              {t.name}
+            </Button>
+          ))}
+        </div>
+      )}
+    </>
   );
 }
 

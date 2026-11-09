@@ -7,9 +7,14 @@ import {
   missingRequired,
   noticeCheck,
   fallbackStartRoute,
+  fallbackTypeSuggestion,
+  normalizeTypeSuggestion,
   startRouteInstructions,
   startRouteSchema,
+  typeSuggestionInstructions,
+  typeSuggestionSchema,
   type StartRoute,
+  type TypeSuggestionResult,
   REQUEST_MODES,
   type RequestMode,
   type Priority,
@@ -121,6 +126,60 @@ export async function routeDescription(text: string): Promise<DescribeResult> {
     redirect(`/requests/${id}`);
   }
   redirect(`/chat?q=${encodeURIComponent(description.data)}`);
+}
+
+const suggestSchema = z.object({
+  notes: z.string().trim().min(8).max(6000),
+  /** The model's question and the requester's answer, on the second round. */
+  followUp: z
+    .object({ question: z.string().max(1000), answer: z.string().trim().min(1).max(2000) })
+    .optional(),
+});
+
+export type SuggestTypeResult =
+  { ok: true; suggestion: TypeSuggestionResult; demo: boolean } | { ok: false; error: string };
+
+/**
+ * "Suggest a type" on the new request page: the model reads the notes and picks the form, names
+ * alternatives when two could fit, or asks one question when it cannot tell. Without a key the
+ * keyword matcher answers.
+ */
+export async function suggestRequestType(
+  input: z.infer<typeof suggestSchema>,
+): Promise<SuggestTypeResult> {
+  const { user } = await requireSession();
+  const parsed = suggestSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: 'Tell us a bit more about what you need.' };
+  const { notes, followUp } = parsed.data;
+
+  const ai = getAiClient();
+  if (ai.isFake) {
+    const text = followUp ? `${notes}\n${followUp.answer}` : notes;
+    return { ok: true, suggestion: fallbackTypeSuggestion(text), demo: true };
+  }
+
+  const messages: { role: 'user' | 'assistant'; content: string }[] = [
+    { role: 'user', content: notes },
+  ];
+  if (followUp) {
+    messages.push(
+      { role: 'assistant', content: followUp.question },
+      { role: 'user', content: followUp.answer },
+    );
+  }
+  try {
+    const res = await ai.structured({
+      name: 'type_suggestion',
+      instructions: typeSuggestionInstructions(!!followUp),
+      messages,
+      schema: typeSuggestionSchema,
+    });
+    await logAiCall(res.usage, user.email, 'type_suggestion');
+    return { ok: true, suggestion: normalizeTypeSuggestion(res.data), demo: false };
+  } catch (err) {
+    console.error('type_suggestion failed', err);
+    return { ok: false, error: 'The assistant didn’t answer. Pick a type below or try again.' };
+  }
 }
 
 const PRIORITY: Record<string, Priority> = {
