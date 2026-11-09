@@ -1,0 +1,22 @@
+{
+  "name": "@creative-hub/worker",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch --env-file-if-exists=../../.env src/index.ts",
+    "build": "tsup",
+    "start": "node dist/index.js",
+    "typecheck": "tsc",
+    "test": "vitest run --passWithNoTests"
+  },
+  "devDependencies": {
+    "tsup": "^9.0.0",
+    "tsx": "^4.23.15"
+  },
+  "dependencies": {
+    "@creative-hub/connectors": "workspace:*",
+    "@creative-hub/core": "workspace:*",
+    "@creative-hub/db": "workspace:*"
+  }
+}

@@ -1,0 +1,1 @@
+ALTER TABLE "requests" ADD COLUMN "draft" jsonb DEFAULT '{}'::jsonb NOT NULL;

@@ -1,0 +1,33 @@
+{
+  "v": 3,
+  "createdOnFiles": {"v": 1, "at": "2026-11-04T07:55:00Z"},
+  "title": "Creative Hub request form",
+  "launch": {"view": "focused", "file": "Chat.dc.html"},
+  "pages": [],
+  "boards": {
+    "Chat.dc.html": {"x": 0, "y": 0, "w": 1440, "h": 900, "title": "1 · Chat first (prototype)", "expand": "fill", "is_interactive": true},
+    "ChatReady.dc.html": {"x": 1520, "y": 0, "w": 1440, "h": 1400, "title": "2 · The chat ends with a brief to check", "expand": "fill", "is_interactive": true},
+    "CheckFields.dc.html": {"x": 3040, "y": 0, "w": 1440, "h": 3100, "title": "3 · Check every field", "expand": "fill", "is_interactive": true},
+    "ChatSent.dc.html": {"x": 4560, "y": 0, "w": 1440, "h": 900, "title": "4 · Sent to the creative team", "expand": "fill", "is_interactive": true},
+    "Main.dc.html": {"x": 0, "y": 3700, "w": 1440, "h": 1600, "title": "5 · Or pick the type yourself (prototype)", "expand": "fill", "is_interactive": true},
+    "SellSheet.dc.html": {"x": 1520, "y": 3700, "w": 1440, "h": 3200, "title": "6 · Sell sheet: the form expands", "expand": "fill", "is_interactive": true},
+    "EventForm.dc.html": {"x": 3040, "y": 3700, "w": 1440, "h": 3250, "title": "7 · Event or trade show", "expand": "fill", "is_interactive": true},
+    "UpdateDeck.dc.html": {"x": 0, "y": 7300, "w": 1440, "h": 3650, "title": "8 · Update an existing deck", "expand": "fill", "is_interactive": true},
+    "Campaign.dc.html": {"x": 1520, "y": 7300, "w": 1440, "h": 4550, "title": "9 · Campaign: strategy once, a form per piece", "expand": "fill", "is_interactive": true},
+    "Review.dc.html": {"x": 3040, "y": 7300, "w": 1440, "h": 1200, "title": "10 · Check and send", "expand": "fill", "is_interactive": true},
+    "AllForms.dc.html": {"x": 0, "y": 12250, "w": 1440, "h": 2600, "title": "11 · All forms at a glance", "expand": "fill"}
+  },
+  "order": ["Chat.dc.html", "ChatReady.dc.html", "CheckFields.dc.html", "ChatSent.dc.html", "Main.dc.html", "SellSheet.dc.html", "EventForm.dc.html", "UpdateDeck.dc.html", "Campaign.dc.html", "Review.dc.html", "AllForms.dc.html"],
+  "notes": {
+    "row0": {"x": 0, "y": -300, "text": "Start with a chat, check every field, then send", "kind": "title1", "maxW": 6000},
+    "chat-how": {"x": 6080, "y": 0, "w": 380, "size": "m", "text": "How it works. 1 · The requester describes the project in the chat. The assistant asks only what’s missing, one to three questions at a time, and never fills in product data or the project number. 2 · When the chat is done, or the requester clicks Create the form now, the answers go into the form for that type. 3 · The requester confirms every field. Each one shows where it came from: the chat, an AI suggestion, the brand list, an earlier project, a file or a rule. 4 · Only then does it go to the creative team. Press Play on 1 · Chat first to try it."},
+    "chat-who": {"x": 6080, "y": 560, "w": 380, "size": "m", "fill": "orange", "text": "To decide: who confirms the fields. Here it’s the person who sent the request, because the briefing analysis says the assistant’s guesses only become facts once the requester accepts them. If the PM or creative manager should also approve before the creative team sees it, that’s one more step after 3 · Check every field."},
+    "row1": {"x": 0, "y": 3400, "text": "Or pick the type yourself, and the form grows with it", "kind": "title1", "maxW": 4480},
+    "row2": {"x": 0, "y": 7040, "text": "Updates, campaigns and the brief it sends", "kind": "title1", "maxW": 4480},
+    "row3": {"x": 0, "y": 11950, "text": "Every form at a glance", "kind": "title1", "maxW": 1440},
+    "how": {"x": 4560, "y": 3700, "w": 380, "size": "m", "text": "How the form works without the chat. 1 · Pick what you need, and whether it’s new work or an update. 2 · The form shows the shared questions plus the questions for that type. A campaign asks its strategy once, then adds one short form per piece. 3 · Check the brief section by section and send. The chat fills in these same forms. Press Play on 5 · Or pick the type yourself to click through every type."},
+    "types-order": {"x": 4560, "y": 4340, "w": 380, "size": "m", "fill": "blue", "text": "The types and their order come from 305 past project folders on Drive: sell sheets 56, advertising 30, packaging 27, events 26, presentations 22, video 19, social 17, retail or POS 16, campaigns 16, e-commerce 13, photography 13, merch 9, email 6, promotional print 6, brand 5, website 5. Internal work (12) is routed outside the form."},
+    "confirm": {"x": 4560, "y": 5100, "w": 380, "size": "m", "fill": "orange", "text": "To confirm with the PM and creative manager: the brand list and codes, which questions are optional, merch as its own type or part of events, the process for website work, where non-creative requests go, and the project number format (shown here as today’s 01-.279)."}
+  },
+  "designSystems": []
+}
