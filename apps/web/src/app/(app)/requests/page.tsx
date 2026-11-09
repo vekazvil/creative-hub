@@ -135,7 +135,7 @@ export default async function RequestsPage({
                   >
                     <div className="flex min-w-0 items-center gap-4">
                       <span className="hidden h-10 min-w-16 shrink-0 items-center justify-center rounded-xl bg-secondary px-2 text-[10px] font-semibold tracking-wide text-muted-foreground sm:flex">
-                        {type?.code ?? '—'}
+                        {type?.code ?? '-'}
                       </span>
                       <div className="min-w-0">
                         <div
@@ -155,10 +155,10 @@ export default async function RequestsPage({
                     </div>
 
                     <span className="hidden truncate text-sm md:block">
-                      {brand ? brand.name : <span className="text-muted-foreground">—</span>}
+                      {brand ? brand.name : <span className="text-muted-foreground">-</span>}
                     </span>
                     <span className="hidden text-sm tabular-nums md:block">
-                      {due ? shortDate(due) : <span className="text-muted-foreground">—</span>}
+                      {due ? shortDate(due) : <span className="text-muted-foreground">-</span>}
                     </span>
                     <span className="justify-self-end md:justify-self-start">
                       <StatusBadge status={r.status} />

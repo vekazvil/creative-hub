@@ -106,6 +106,7 @@ export function typeSuggestionInstructions(followUp: boolean): string {
     '- "unclear" when the notes do not say what gets made (only a product, a deadline, a goal). Then ask one short question that would settle it, naming the 2–3 most likely types in plain words. Never guess from too little.',
     '- Use "campaign" only for several different pieces around one idea.',
     '- mode is "update" only when they change something that already exists (a new version, a fix, a translation of an existing piece).',
+    '- Plain punctuation: no em dashes (—) in reason or question; use a comma, a colon or a new sentence.',
     '- Write reason and question in the language the notes are written in: English when they are in English, even if they mention Spanish product or brand names (salsa verde, La Costeña), Spanish only when the notes themselves are in Spanish.',
   ];
   if (followUp) {

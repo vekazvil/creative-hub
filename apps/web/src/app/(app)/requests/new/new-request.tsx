@@ -169,12 +169,12 @@ export function NewRequest() {
                     </Button>
                   </div>
                   <p className="text-sm text-muted-foreground">
-                    Or pick a type below — your notes come with you.
+                    Or pick a type below. Your notes come with you.
                   </p>
                 </form>
               ) : (
                 <p className="text-[15px]">
-                  We couldn’t tell the type from your notes. Pick the closest one below — your notes
+                  We couldn’t tell the type from your notes. Pick the closest one below. Your notes
                   come with you.
                 </p>
               )}
@@ -288,7 +288,7 @@ export function NewRequest() {
               exit={{ opacity: 0, height: 0 }}
               className="overflow-hidden pt-3 text-[15px]"
             >
-              Send it to <span className="font-medium">[team or person — to be confirmed]</span>. It
+              Send it to <span className="font-medium">[team or person, to be confirmed]</span>. It
               won’t get a project number, a creative folder or creative subitems.
             </motion.p>
           )}

@@ -39,7 +39,7 @@ export default async function RequestPage({ params }: { params: Promise<{ id: st
           {waiting ? <Clock className="size-7" /> : <CheckCircle2 className="size-7" />}
         </div>
         <h1 className="mt-6 text-[28px] leading-tight font-semibold">
-          {waiting ? 'Sent — waiting for approval' : 'Request sent'}
+          {waiting ? 'Sent, waiting for approval' : 'Request sent'}
         </h1>
         <p className="mt-2 text-[17px] text-muted-foreground">
           {waiting

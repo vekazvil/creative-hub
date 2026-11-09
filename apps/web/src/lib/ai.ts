@@ -24,7 +24,7 @@ function fakeIntakeTurn(lastMessage: string): IntakeTurn {
   return intakeTurnSchema.parse({
     reply: s
       ? `Sounds like ${s.type.name.toLowerCase()}. (Demo mode: AI isn’t connected, so I can’t fill in answers yet.) You can open the form now and fill it in.`
-      : '(Demo mode: AI isn’t connected.) Tell me what you need — a sell sheet, an ad, a banner, a video…',
+      : '(Demo mode: AI isn’t connected.) Tell me what you need: a sell sheet, an ad, a banner, a video…',
     workType: s?.type.id ?? null,
     mode: null,
     answers: [],

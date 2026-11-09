@@ -466,7 +466,7 @@ function SaveIndicator({ state }: { state: SaveState }) {
     idle: 'Draft',
     saving: 'Saving…',
     saved: 'Draft saved',
-    error: 'Couldn’t save — retrying',
+    error: 'Couldn’t save, retrying',
   }[state];
   return (
     <AnimatePresence mode="wait" initial={false}>

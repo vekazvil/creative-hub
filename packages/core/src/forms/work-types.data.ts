@@ -392,7 +392,7 @@ export const RAW_WORK_TYPES: RawWorkType[] = [
     group: 'more',
     past: 17,
     examples: 'Feed and story sets, giveaways, seasonal posts, content calendars',
-    similar: '01-.266 Giveaway La Costeña × Atlanta United — VIP Suite',
+    similar: '01-.266 Giveaway La Costeña × Atlanta United, VIP Suite',
     dateLabel: 'Publish date',
     products: true,
     budget: false,
