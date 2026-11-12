@@ -1,6 +1,6 @@
 'use client';
 
-import { ClipboardList, LogOut, MessageCircle, Plus } from 'lucide-react';
+import { ClipboardList, Link2, LogOut, MessageCircle, Plus, UserCheck } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
@@ -70,6 +70,16 @@ export function UserMenu({ user }: { user: { name: string; email: string } }) {
           <DropdownMenuItem asChild className={item}>
             <Link href="/requests">
               <ClipboardList /> My requests
+            </Link>
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild className={item}>
+            <Link href="/links">
+              <Link2 /> Public links
+            </Link>
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild className={item}>
+            <Link href="/approvers">
+              <UserCheck /> Approvers
             </Link>
           </DropdownMenuItem>
         </DropdownMenuGroup>

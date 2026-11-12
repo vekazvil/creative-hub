@@ -15,6 +15,7 @@ import {
 import { createdAt, updatedAt } from './_shared';
 import { approvalDecision, priority, requestMode, requestStatus } from './enums';
 import { projects } from './projects';
+import { publicLinks } from './public-links';
 
 /**
  * One row per request. Created before any external write.
@@ -40,6 +41,8 @@ export const requests = pgTable(
     finalFilesOn: date(),
     /** For an update: the project being updated. */
     relatedProjectId: uuid().references(() => projects.id, { onDelete: 'set null' }),
+    /** The public link it was sent through, if any. Its owner sees the request. */
+    publicLinkId: uuid().references(() => publicLinks.id, { onDelete: 'set null' }),
     currentBriefVersion: integer().notNull().default(0),
     /** Answers while the request is a draft; autosaved. Becomes a brief version on submit. */
     draft: jsonb()
@@ -55,6 +58,7 @@ export const requests = pgTable(
     index('requests_requester_recent_idx').on(t.requesterEmail, t.updatedAt),
     index('requests_submitter_recent_idx').on(t.submittedByEmail, t.updatedAt),
     index('requests_status_idx').on(t.status),
+    index('requests_public_link_idx').on(t.publicLinkId),
   ],
 );
 

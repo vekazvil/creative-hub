@@ -159,7 +159,8 @@ function dateFields(type: WorkType): FieldDef[] {
       label: 'Approver',
       kind: 'person',
       required: true,
-      placeholder: 'Who signs it off',
+      placeholder: 'Search approvers',
+      hint: 'Who signs it off. The list is kept on the Approvers page.',
       half: true,
     },
     {

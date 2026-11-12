@@ -12,8 +12,14 @@ const AUTH_PAGES = [
   '/verify-email',
 ];
 
+// Open to everyone, signed in or not: public request links (/l/<token>).
+const PUBLIC_PAGES = ['/l'];
+
 export function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
+  if (PUBLIC_PAGES.some((p) => pathname === p || pathname.startsWith(`${p}/`))) {
+    return NextResponse.next();
+  }
   const hasSession = !!getSessionCookie(request);
   const isAuthPage = AUTH_PAGES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 

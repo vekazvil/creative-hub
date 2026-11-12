@@ -19,6 +19,7 @@ import { redirect } from 'next/navigation';
 import { z } from 'zod';
 
 import { getAiClient, logAiCall } from '@/lib/ai';
+import { getApprovers } from '@/lib/approvers';
 import { getBrands, suggestBrandName } from '@/lib/brands';
 import { getOwnChat } from '@/lib/chats';
 import { getDb } from '@/lib/db';
@@ -69,7 +70,7 @@ export async function sendChatMessage(
   const msgs = [...history, { role: 'user' as const, content }].slice(-CHAT_HISTORY_WINDOW);
   const ai = getAiClient();
   const today = todayInTexas();
-  const brands = await getBrands();
+  const [brands, approvers] = await Promise.all([getBrands(), getApprovers()]);
   const unknownBrands = new Set<string>();
 
   let reply: string;
@@ -78,7 +79,7 @@ export async function sendChatMessage(
     const ask = async (s: IntakeState, notes: string[] = []) => {
       const res = await ai.structured({
         name: 'intake_turn',
-        instructions: intakeInstructions(s, today, user.name, brands, notes),
+        instructions: intakeInstructions(s, today, user.name, brands, notes, approvers),
         messages: msgs,
         schema: intakeTurnSchema,
       });
@@ -86,7 +87,7 @@ export async function sendChatMessage(
       return res.data;
     };
     const apply = (t: Awaited<ReturnType<typeof ask>>) => {
-      const res = applyIntakeTurn(state, t, brands);
+      const res = applyIntakeTurn(state, t, brands, approvers);
       res.unknownBrands.forEach((b) => unknownBrands.add(b));
       return res.state;
     };
@@ -102,7 +103,7 @@ export async function sendChatMessage(
     // A brand name we don't know: ask once more so the reply says so instead of pretending.
     if (unknownBrands.size && !ai.isFake) {
       turn = await ask(state, [...unknownBrands].map(unknownBrandNote));
-      state = applyIntakeTurn(state, turn, brands).state;
+      state = applyIntakeTurn(state, turn, brands, approvers).state;
     }
     reply = formatReply(turn.reply);
     ready = turn.ready;

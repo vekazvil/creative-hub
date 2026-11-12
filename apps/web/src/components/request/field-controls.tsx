@@ -1,9 +1,13 @@
 'use client';
 
 import {
+  approverLabel,
   brandLabel,
+  findApprover,
   findBrand,
+  searchApprovers,
   searchBrands,
+  type Approver,
   type Brand,
   type FieldDef,
   type FieldValue,
@@ -19,6 +23,9 @@ const inputBase =
 
 /** The brand list, loaded on the server and provided by the form. */
 export const BrandsContext = createContext<readonly Brand[]>([]);
+
+/** The approvers list (removed ones included, for display), provided by the form. */
+export const ApproversContext = createContext<readonly Approver[]>([]);
 
 export interface ControlProps {
   id: string;
@@ -39,6 +46,8 @@ export function FieldControl(props: ControlProps) {
       return <Multi {...props} />;
     case 'brand':
       return <BrandPicker {...props} />;
+    case 'person':
+      return <ApproverPicker {...props} />;
     case 'file':
       return <FilePicker {...props} />;
     case 'auto':
@@ -262,6 +271,129 @@ function BrandPicker({ id, field, value, onChange, invalid }: ControlProps) {
                 )}
               </span>
               {b.code === code && <Check className="size-4 text-primary" />}
+            </li>
+          ))}
+        </motion.ul>
+      )}
+    </div>
+  );
+}
+
+/** Searchable approvers list (combobox). Stores the approver's email. */
+function ApproverPicker({ id, field, value, onChange, invalid }: ControlProps) {
+  const listId = useId();
+  const approvers = use(ApproversContext);
+  const email = typeof value === 'string' ? value : '';
+  const selected = email ? findApprover(approvers, email) : undefined;
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const [active, setActive] = useState(0);
+  const wrap = useRef<HTMLDivElement>(null);
+
+  const options = useMemo(() => searchApprovers(approvers, query), [approvers, query]);
+
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: MouseEvent) => {
+      if (!wrap.current?.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', close);
+    return () => document.removeEventListener('mousedown', close);
+  }, [open]);
+
+  const pick = (e: string) => {
+    onChange(e);
+    setQuery('');
+    setOpen(false);
+  };
+
+  // An old answer typed by hand, or someone since removed, still shows until it is replaced.
+  const shown = selected ? approverLabel(selected) : email;
+
+  return (
+    <div ref={wrap} className="relative">
+      <input
+        id={id}
+        role="combobox"
+        aria-expanded={open}
+        aria-controls={listId}
+        aria-autocomplete="list"
+        aria-activedescendant={open && options[active] ? `${listId}-${active}` : undefined}
+        aria-invalid={invalid || (!!email && !selected?.active) || undefined}
+        value={open ? query : shown}
+        placeholder={field.placeholder}
+        onFocus={() => {
+          setOpen(true);
+          setActive(0);
+        }}
+        onChange={(e) => {
+          setQuery(e.target.value);
+          setOpen(true);
+          setActive(0);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            setOpen(true);
+            setActive((a) => Math.min(a + 1, options.length - 1));
+          } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            setActive((a) => Math.max(a - 1, 0));
+          } else if (e.key === 'Enter' && open && options[active]) {
+            e.preventDefault();
+            pick(options[active].email);
+          } else if (e.key === 'Escape') {
+            setOpen(false);
+          }
+        }}
+        className={cn(inputBase, 'h-12 pr-10')}
+      />
+      <ChevronsUpDown className="pointer-events-none absolute top-1/2 right-3.5 size-4 -translate-y-1/2 text-muted-foreground" />
+      {!open && email && !selected?.active && (
+        <p className="mt-1.5 text-[13px] text-destructive">
+          Not on the approvers list. Pick someone from the list.
+        </p>
+      )}
+      {open && (
+        <motion.ul
+          id={listId}
+          role="listbox"
+          initial={{ opacity: 0, y: -4, scale: 0.98 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={{ duration: 0.15 }}
+          className="absolute z-20 mt-2 max-h-72 w-full overflow-auto rounded-2xl border border-border bg-popover p-1.5 shadow-(--shadow-float)"
+        >
+          {options.length === 0 && (
+            <li className="px-3 py-2.5 text-[15px] text-muted-foreground">
+              {approvers.some((a) => a.active)
+                ? 'Nobody matches. Approvers are added on the Approvers page.'
+                : 'No approvers yet. Add them on the Approvers page.'}
+            </li>
+          )}
+          {options.map((a, i) => (
+            <li
+              key={a.email}
+              id={`${listId}-${i}`}
+              role="option"
+              aria-selected={a.email === selected?.email}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => pick(a.email)}
+              onMouseEnter={() => setActive(i)}
+              className={cn(
+                'flex cursor-pointer items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-[15px]',
+                i === active && 'bg-muted',
+              )}
+            >
+              <span className="min-w-0">
+                <span className="block truncate">
+                  {a.name}
+                  {a.title && (
+                    <span className="ml-2 text-[13px] text-muted-foreground">{a.title}</span>
+                  )}
+                </span>
+                <span className="block truncate text-[13px] text-muted-foreground">{a.email}</span>
+              </span>
+              {a.email === selected?.email && <Check className="size-4 shrink-0 text-primary" />}
             </li>
           ))}
         </motion.ul>

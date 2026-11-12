@@ -1,4 +1,5 @@
 import type { RequestMode } from '../enums';
+import { approverLabel, findApprover, type Approver } from './approvers';
 import { brandLabel, findBrand, type Brand } from './brands';
 import { buildSections, F, isFilled, sectionValue, type FormSection } from './sections';
 import type { FieldDef, FieldValue, RequestFormData, WorkType } from './types';
@@ -33,6 +34,7 @@ export function displayValue(
   field: FieldDef,
   value: FieldValue | undefined,
   brands: readonly Brand[],
+  approvers: readonly Approver[] = [],
 ): string {
   if (!isFilled(value)) return '';
   if (Array.isArray(value)) return value.join(', ');
@@ -40,6 +42,10 @@ export function displayValue(
   if (field.kind === 'brand') {
     const b = findBrand(brands, value!);
     return b ? brandLabel(b) : value!;
+  }
+  if (field.kind === 'person') {
+    const a = findApprover(approvers, value!);
+    return a ? `${approverLabel(a)} (${a.email})` : value!;
   }
   return value!;
 }
@@ -56,6 +62,7 @@ export function buildBrief(
   data: RequestFormData,
   requester: string,
   brands: readonly Brand[],
+  approvers: readonly Approver[] = [],
 ): BriefSection[] {
   const sections = buildSections(type, mode, data);
   const lookup = new Map<string, { section: FormSection; field: FieldDef }>();
@@ -66,7 +73,7 @@ export function buildBrief(
   const row = (id: string, labelOverride?: string): BriefRow | null => {
     const hit = lookup.get(id);
     if (!hit) return null;
-    const value = displayValue(hit.field, sectionValue(data, hit.section, id), brands);
+    const value = displayValue(hit.field, sectionValue(data, hit.section, id), brands, approvers);
     if (!value && !hit.field.required) return null;
     return { label: labelOverride ?? hit.field.label, value, sectionId: hit.section.id };
   };

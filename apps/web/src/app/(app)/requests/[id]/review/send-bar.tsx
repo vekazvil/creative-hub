@@ -13,10 +13,15 @@ export function SendBar({
   id,
   missing,
   urgent,
+  submit = submitRequest,
+  backHref = `/requests/${id}`,
 }: {
   id: string;
   missing: string[];
   urgent: boolean;
+  /** Sends the request; returns the empty required questions when it can't. */
+  submit?: (id: string) => Promise<{ ok: false; missing: string[] } | undefined | void>;
+  backHref?: string;
 }) {
   const [pending, start] = useTransition();
   const [serverMissing, setServerMissing] = useState<string[]>();
@@ -24,7 +29,7 @@ export function SendBar({
 
   function send() {
     start(async () => {
-      const res = await submitRequest(id);
+      const res = await submit(id);
       if (res && !res.ok) {
         setServerMissing(res.missing);
         toast.error(
@@ -46,7 +51,7 @@ export function SendBar({
         </p>
         <div className="flex gap-2">
           <Button asChild variant="secondary">
-            <Link href={`/requests/${id}`}>Back to details</Link>
+            <Link href={backHref}>Back to details</Link>
           </Button>
           <Button onClick={send} loading={pending} disabled={left.length > 0}>
             {!pending && <Send aria-hidden />}

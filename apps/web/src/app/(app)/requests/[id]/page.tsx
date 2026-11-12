@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { RequestForm } from '@/components/request/request-form';
 import { StatusBadge } from '@/components/request/status-badge';
 import { Button } from '@/components/ui/button';
+import { getApprovers } from '@/lib/approvers';
 import { getBrands } from '@/lib/brands';
 import { getOwnRequest } from '@/lib/requests/data';
 import { requireSession } from '@/lib/session';
@@ -25,6 +26,7 @@ export default async function RequestPage({ params }: { params: Promise<{ id: st
         initial={data}
         requester={user.name}
         brands={await getBrands()}
+        approvers={await getApprovers()}
       />
     );
   }

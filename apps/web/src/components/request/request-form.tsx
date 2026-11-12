@@ -3,6 +3,7 @@
 import {
   buildSections,
   CAMPAIGN_PIECE_TYPES,
+  CUSTOM_TYPE_ID,
   F,
   getWorkType,
   isFilled,
@@ -11,6 +12,7 @@ import {
   requiredCount,
   sectionValue,
   subitemsText,
+  type Approver,
   type Brand,
   type FieldValue,
   type FormSection,
@@ -38,9 +40,9 @@ import { saveDraft } from '@/app/(app)/requests/actions';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
-import { BrandsContext, FieldControl } from './field-controls';
+import { ApproversContext, BrandsContext, FieldControl } from './field-controls';
 import { Stepper } from './stepper';
-import { REQUEST_STEPS } from './steps';
+import { REQUEST_STEPS, type Step } from './steps';
 import { useAutosave, type SaveState } from './use-autosave';
 
 interface Props {
@@ -50,16 +52,43 @@ interface Props {
   initial: RequestFormData;
   requester: string;
   brands: Brand[];
+  approvers: Approver[];
+  /** Autosave. Defaults to the signed-in requester's draft. */
+  save?: (data: RequestFormData) => Promise<unknown>;
+  /** Stepper and links, for flows outside "My requests" (the public link). */
+  steps?: Step[];
+  stepIndex?: number;
+  reviewHref?: string;
+  changeTypeHref?: string;
+  /** Replaces the requester field's hint, e.g. on a public link where there is no account. */
+  requesterHint?: string;
 }
 
 const fieldAnchor = (sectionId: string, fieldId: string) => `f-${sectionId}-${fieldId}`;
 
-export function RequestForm({ requestId, type, mode, initial, requester, brands }: Props) {
+export function RequestForm({
+  requestId,
+  type,
+  mode,
+  initial,
+  requester,
+  brands,
+  approvers,
+  save: saveProp,
+  steps,
+  stepIndex = 1,
+  reviewHref = `/requests/${requestId}/review`,
+  changeTypeHref = '/requests/new',
+  requesterHint,
+}: Props) {
   const router = useRouter();
   const [data, setData] = useState<RequestFormData>(initial);
   const [showErrors, setShowErrors] = useState(false);
   const [navigating, startNav] = useTransition();
-  const save = useCallback((d: RequestFormData) => saveDraft(requestId, d), [requestId]);
+  const save = useCallback(
+    (d: RequestFormData) => (saveProp ? saveProp(d) : saveDraft(requestId, d)),
+    [requestId, saveProp],
+  );
   const { state, flush } = useAutosave(data, save);
 
   const sections = useMemo(() => buildSections(type, mode, data), [type, mode, data]);
@@ -105,7 +134,7 @@ export function RequestForm({ requestId, type, mode, initial, requester, brands 
     }
     startNav(async () => {
       await flush();
-      router.push(`/requests/${requestId}/review`);
+      router.push(reviewHref);
     });
   }
 
@@ -113,154 +142,165 @@ export function RequestForm({ requestId, type, mode, initial, requester, brands 
 
   return (
     <BrandsContext value={brands}>
-      <main className="mx-auto max-w-6xl px-4 pt-8 sm:px-6">
-        <Stepper steps={REQUEST_STEPS(requestId)} current={1} />
+      <ApproversContext value={approvers}>
+        <main className="mx-auto max-w-6xl px-4 pt-8 sm:px-6">
+          <Stepper steps={steps ?? REQUEST_STEPS(requestId)} current={stepIndex} />
 
-        <header className="mt-10 flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <div className="text-xs font-semibold tracking-wide text-muted-foreground">
-              {type.code} · {mode === 'update' ? 'UPDATE' : 'NEW'}
-            </div>
-            <h1 className="mt-1 text-[30px] leading-tight font-semibold sm:text-[34px]">
-              {type.name}
-            </h1>
-          </div>
-          <div className="flex items-center gap-4">
-            <SaveIndicator state={state} />
-            <Link
-              href="/requests/new"
-              className="text-[15px] font-medium text-primary hover:underline"
-            >
-              Change type
-            </Link>
-          </div>
-        </header>
-
-        {type.process && (
-          <div className="mt-6 flex gap-3 rounded-2xl bg-[#fff4e5] p-4 text-[15px] text-[#8a4b00] dark:bg-[#3a2a12] dark:text-[#ffb35c]">
-            <AlertCircle className="mt-0.5 size-5 shrink-0" aria-hidden />
-            {type.process}
-          </div>
-        )}
-
-        <div className="mt-8 grid gap-8 lg:grid-cols-[minmax(0,1fr)_320px]">
-          <div className="space-y-6">
-            <p className="text-sm text-muted-foreground">
-              Questions marked <span className="text-destructive">*</span> are required.
-            </p>
-            {sections.map((section) => (
-              <SectionCard
-                key={section.id}
-                section={section}
-                data={data}
-                requester={requester}
-                showErrors={showErrors}
-                missingSet={missingSet}
-                onChange={setValue}
-                onRemove={
-                  section.pieceIndex !== undefined && (data.pieces?.length ?? 0) > 1
-                    ? () => removePiece(section.pieceIndex!)
-                    : undefined
-                }
-              />
-            ))}
-            {type.id === 'campaign' && <AddPiece onAdd={addPiece} />}
-          </div>
-
-          <aside className="space-y-4 lg:sticky lg:top-20 lg:self-start">
-            {data.notes && (
-              <PanelCard icon={StickyNote} title="Your notes">
-                <p className="max-h-48 overflow-auto text-sm leading-relaxed whitespace-pre-wrap text-muted-foreground">
-                  {data.notes}
-                </p>
-              </PanelCard>
-            )}
-            <PanelCard
-              icon={missing.length === 0 ? CheckCircle2 : AlertCircle}
-              iconClass={missing.length === 0 ? 'text-success' : 'text-muted-foreground'}
-              title="Required questions"
-            >
-              <div className="mb-3 h-1.5 overflow-hidden rounded-full bg-muted">
-                <motion.div
-                  className={cn(
-                    'h-full rounded-full',
-                    missing.length === 0 ? 'bg-success' : 'bg-primary',
-                  )}
-                  animate={{ width: `${total ? ((total - missing.length) / total) * 100 : 100}%` }}
-                />
+          <header className="mt-10 flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <div className="text-xs font-semibold tracking-wide text-muted-foreground">
+                {type.code} · {mode === 'update' ? 'UPDATE' : 'NEW'}
+                {type.id === CUSTOM_TYPE_ID && ' · BUILT BY AI'}
               </div>
-              <p className="text-sm text-muted-foreground">
-                {missing.length === 0
-                  ? `All ${total} required questions are answered.`
-                  : `${total - missing.length} of ${total} answered.`}
-              </p>
-              {missing.length > 0 && (
-                <ul className="mt-3 max-h-56 space-y-1 overflow-auto">
-                  {missing.map((m) => (
-                    <li key={`${m.sectionId}:${m.fieldId}`}>
-                      <button
-                        type="button"
-                        onClick={() => goToField(m.sectionId, m.fieldId)}
-                        className="w-full truncate rounded-lg px-2 py-1 text-left text-sm text-primary hover:bg-accent"
-                      >
-                        {m.label}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
+              <h1 className="mt-1 text-[30px] leading-tight font-semibold sm:text-[34px]">
+                {type.name}
+              </h1>
+              {type.id === CUSTOM_TYPE_ID && type.examples && (
+                <p className="mt-1 max-w-2xl text-[15px] text-muted-foreground">{type.examples}</p>
               )}
-            </PanelCard>
-            <PanelCard icon={Clock} title="Timing">
-              {notice ? (
-                <p
-                  className={cn(
-                    'text-sm',
-                    notice.urgent ? 'text-[#b25000] dark:text-[#ffb35c]' : 'text-muted-foreground',
-                  )}
-                >
-                  {notice.workingDays} working {notice.workingDays === 1 ? 'day' : 'days'} in Texas
-                  until the first deadline.{' '}
-                  {notice.urgent
-                    ? 'That’s under the normal 5 days, so the PM or creative manager approves it first.'
-                    : 'Normal notice, no rush approval needed.'}
-                </p>
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  Normal notice is 5 working days, counted in Texas. Under that, the PM or the
-                  creative manager approves first.
-                </p>
-              )}
-            </PanelCard>
-            <PanelCard icon={Lightbulb} title="When you send">
-              <ul className="space-y-1.5 text-sm text-muted-foreground">
-                <li>A project number and a Monday item</li>
-                <li>
-                  Subitems{' '}
-                  {subitemsText(type).replace(
-                    'Process to be decided for website work',
-                    'to be decided',
-                  )}
-                </li>
-                <li>A Drive folder with the brief and your files</li>
-                <li>A Slack channel for the creative team</li>
-                <li>An email to you with the links</li>
-              </ul>
-            </PanelCard>
-          </aside>
-        </div>
+            </div>
+            <div className="flex items-center gap-4">
+              <SaveIndicator state={state} />
+              <Link
+                href={changeTypeHref}
+                className="text-[15px] font-medium text-primary hover:underline"
+              >
+                {type.id === CUSTOM_TYPE_ID ? 'Start over' : 'Change type'}
+              </Link>
+            </div>
+          </header>
 
-        <div className="sticky bottom-0 z-30 mx-[calc(50%-50vw)] mt-10 w-screen border-t border-border/60 bg-background/80 backdrop-blur-xl backdrop-saturate-150">
-          <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
-            <p className="text-sm text-muted-foreground">
-              {missing.length === 0 ? 'Ready to check.' : `${missing.length} required left`}
-            </p>
-            <Button onClick={continueToReview} loading={navigating}>
-              Continue to check and send
-              <ArrowRight aria-hidden />
-            </Button>
+          {type.process && (
+            <div className="mt-6 flex gap-3 rounded-2xl bg-[#fff4e5] p-4 text-[15px] text-[#8a4b00] dark:bg-[#3a2a12] dark:text-[#ffb35c]">
+              <AlertCircle className="mt-0.5 size-5 shrink-0" aria-hidden />
+              {type.process}
+            </div>
+          )}
+
+          <div className="mt-8 grid gap-8 lg:grid-cols-[minmax(0,1fr)_320px]">
+            <div className="space-y-6">
+              <p className="text-sm text-muted-foreground">
+                Questions marked <span className="text-destructive">*</span> are required.
+              </p>
+              {sections.map((section) => (
+                <SectionCard
+                  key={section.id}
+                  section={section}
+                  data={data}
+                  requester={requester}
+                  requesterHint={requesterHint}
+                  showErrors={showErrors}
+                  missingSet={missingSet}
+                  onChange={setValue}
+                  onRemove={
+                    section.pieceIndex !== undefined && (data.pieces?.length ?? 0) > 1
+                      ? () => removePiece(section.pieceIndex!)
+                      : undefined
+                  }
+                />
+              ))}
+              {type.id === 'campaign' && <AddPiece onAdd={addPiece} />}
+            </div>
+
+            <aside className="space-y-4 lg:sticky lg:top-20 lg:self-start">
+              {data.notes && (
+                <PanelCard icon={StickyNote} title="Your notes">
+                  <p className="max-h-48 overflow-auto text-sm leading-relaxed whitespace-pre-wrap text-muted-foreground">
+                    {data.notes}
+                  </p>
+                </PanelCard>
+              )}
+              <PanelCard
+                icon={missing.length === 0 ? CheckCircle2 : AlertCircle}
+                iconClass={missing.length === 0 ? 'text-success' : 'text-muted-foreground'}
+                title="Required questions"
+              >
+                <div className="mb-3 h-1.5 overflow-hidden rounded-full bg-muted">
+                  <motion.div
+                    className={cn(
+                      'h-full rounded-full',
+                      missing.length === 0 ? 'bg-success' : 'bg-primary',
+                    )}
+                    animate={{
+                      width: `${total ? ((total - missing.length) / total) * 100 : 100}%`,
+                    }}
+                  />
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  {missing.length === 0
+                    ? `All ${total} required questions are answered.`
+                    : `${total - missing.length} of ${total} answered.`}
+                </p>
+                {missing.length > 0 && (
+                  <ul className="mt-3 max-h-56 space-y-1 overflow-auto">
+                    {missing.map((m) => (
+                      <li key={`${m.sectionId}:${m.fieldId}`}>
+                        <button
+                          type="button"
+                          onClick={() => goToField(m.sectionId, m.fieldId)}
+                          className="w-full truncate rounded-lg px-2 py-1 text-left text-sm text-primary hover:bg-accent"
+                        >
+                          {m.label}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </PanelCard>
+              <PanelCard icon={Clock} title="Timing">
+                {notice ? (
+                  <p
+                    className={cn(
+                      'text-sm',
+                      notice.urgent
+                        ? 'text-[#b25000] dark:text-[#ffb35c]'
+                        : 'text-muted-foreground',
+                    )}
+                  >
+                    {notice.workingDays} working {notice.workingDays === 1 ? 'day' : 'days'} in
+                    Texas until the first deadline.{' '}
+                    {notice.urgent
+                      ? 'That’s under the normal 5 days, so the PM or creative manager approves it first.'
+                      : 'Normal notice, no rush approval needed.'}
+                  </p>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    Normal notice is 5 working days, counted in Texas. Under that, the PM or the
+                    creative manager approves first.
+                  </p>
+                )}
+              </PanelCard>
+              <PanelCard icon={Lightbulb} title="When you send">
+                <ul className="space-y-1.5 text-sm text-muted-foreground">
+                  <li>A project number and a Monday item</li>
+                  <li>
+                    Subitems{' '}
+                    {subitemsText(type).replace(
+                      'Process to be decided for website work',
+                      'to be decided',
+                    )}
+                  </li>
+                  <li>A Drive folder with the brief and your files</li>
+                  <li>A Slack channel for the creative team</li>
+                  <li>An email to you with the links</li>
+                </ul>
+              </PanelCard>
+            </aside>
           </div>
-        </div>
-      </main>
+
+          <div className="sticky bottom-0 z-30 mx-[calc(50%-50vw)] mt-10 w-screen border-t border-border/60 bg-background/80 backdrop-blur-xl backdrop-saturate-150">
+            <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
+              <p className="text-sm text-muted-foreground">
+                {missing.length === 0 ? 'Ready to check.' : `${missing.length} required left`}
+              </p>
+              <Button onClick={continueToReview} loading={navigating}>
+                Continue to check and send
+                <ArrowRight aria-hidden />
+              </Button>
+            </div>
+          </div>
+        </main>
+      </ApproversContext>
     </BrandsContext>
   );
 }
@@ -269,6 +309,7 @@ function SectionCard({
   section,
   data,
   requester,
+  requesterHint,
   showErrors,
   missingSet,
   onChange,
@@ -277,6 +318,7 @@ function SectionCard({
   section: FormSection;
   data: RequestFormData;
   requester: string;
+  requesterHint?: string;
   showErrors: boolean;
   missingSet: Set<string>;
   onChange: (s: FormSection, fieldId: string, v: FieldValue) => void;
@@ -389,7 +431,9 @@ function SectionCard({
                       <p className="text-sm text-[#8a4b00] dark:text-[#ffb35c]">{meta.note}</p>
                     )}
                     {field.hint && field.kind !== 'file' && !invalid && (
-                      <p className="text-sm text-muted-foreground">{field.hint}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {field.id === F.requester && requesterHint ? requesterHint : field.hint}
+                      </p>
                     )}
                   </div>
                 );

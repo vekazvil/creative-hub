@@ -1,4 +1,5 @@
-import { formatDate, getWorkType, todayInTexas } from '@creative-hub/core';
+import { CUSTOM_TYPE_ID, formatDate, getWorkType, todayInTexas } from '@creative-hub/core';
+
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import type { Metadata } from 'next';
 import Link from 'next/link';
@@ -20,6 +21,10 @@ import { requireSession } from '@/lib/session';
 import { cn } from '@/lib/utils';
 
 export const metadata: Metadata = { title: 'My requests' };
+
+/** Generated forms aren't in the catalog; the list names them by their origin. */
+const AI_FORM = { code: 'AI', name: 'Form built by AI' };
+const listType = (id: string) => getWorkType(id) ?? (id === CUSTOM_TYPE_ID ? AI_FORM : undefined);
 
 const updated = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' });
 /** "Fri, Nov 13, 2026" → "Nov 13" for the table. */
@@ -52,7 +57,7 @@ export default async function RequestsPage({
 
   // The filter menu offers only what the requester actually has.
   const typeOptions = result.typeIds
-    .map((id) => ({ id, label: getWorkType(id)?.name ?? id }))
+    .map((id) => ({ id, label: listType(id)?.name ?? id }))
     .sort((x, y) => x.label.localeCompare(y.label));
   const brandOptions = result.brandCodes
     .map((id) => ({ id, label: brands.find((b) => b.code === id)?.name ?? id }))
@@ -124,7 +129,7 @@ export default async function RequestsPage({
           </div>
           <ul className="divide-y divide-border">
             {rows.map((r) => {
-              const type = getWorkType(r.workType);
+              const type = listType(r.workType);
               const brand = brands.find((b) => b.code === r.brandCode);
               const due = r.finalFilesOn;
               return (
@@ -144,11 +149,16 @@ export default async function RequestsPage({
                             !r.title && 'text-muted-foreground',
                           )}
                         >
-                          {r.title || `New ${type?.name.toLowerCase() ?? 'request'}`}
+                          {r.title ||
+                            (r.workType === CUSTOM_TYPE_ID
+                              ? 'Untitled AI form'
+                              : `New ${type?.name.toLowerCase() ?? 'request'}`)}
                         </div>
                         <div className="mt-0.5 truncate text-sm text-muted-foreground">
                           {type?.name ?? r.workType}
-                          {r.mode === 'update' && ' · update'} · {r.submittedAt ? 'sent' : 'edited'}{' '}
+                          {r.mode === 'update' && ' · update'}
+                          {r.publicLinkId && ' · via public link'} ·{' '}
+                          {r.submittedAt ? 'sent' : 'edited'}{' '}
                           {updated.format(r.submittedAt ?? r.updatedAt)}
                         </div>
                       </div>

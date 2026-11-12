@@ -57,6 +57,20 @@
       "when": 1793959631050,
       "tag": "0007_requests_recent_idx",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1794324549254,
+      "tag": "0008_public_links",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1794495034046,
+      "tag": "0009_approvers",
+      "breakpoints": true
     }
   ]
 }

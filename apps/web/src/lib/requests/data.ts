@@ -2,7 +2,8 @@ import 'server-only';
 
 import {
   DEFAULT_CAMPAIGN_PIECES,
-  getWorkType,
+  generatedFormSchema,
+  resolveWorkType,
   type RequestFormData,
   type RequestMode,
 } from '@creative-hub/core';
@@ -14,7 +15,22 @@ import { z } from 'zod';
 import { getDb } from '../db';
 import { addDays, PAGE_SIZE, TABS, type RequestFilters, type TabId } from './filters';
 
-const { requests } = schema;
+const { requests, publicLinks } = schema;
+
+/** Requests someone may see: they asked for it, sent it, or it came through their public link. */
+function visibleTo(email: string) {
+  return or(
+    eq(requests.requesterEmail, email),
+    eq(requests.submittedByEmail, email),
+    inArray(
+      requests.publicLinkId,
+      getDb()
+        .select({ id: publicLinks.id })
+        .from(publicLinks)
+        .where(eq(publicLinks.createdByEmail, email)),
+    ),
+  )!;
+}
 
 const valuesSchema = z.record(
   z.string(),
@@ -34,6 +50,7 @@ export const formDataSchema = z.object({
       z.object({ source: z.enum(['chat', 'ai']), note: z.string().max(500).optional() }),
     )
     .optional(),
+  form: generatedFormSchema.optional(),
 });
 
 export function emptyFormData(typeId: string, notes?: string): RequestFormData {
@@ -51,23 +68,39 @@ export function readFormData(draft: unknown): RequestFormData {
   return parsed.success ? (parsed.data as RequestFormData) : { values: {} };
 }
 
-/** A request the signed-in user may see: they asked for it or sent it. */
+/** A request the signed-in user may see (see `visibleTo`). */
 export async function getOwnRequest(id: string, email: string) {
   if (!z.uuid().safeParse(id).success) notFound();
   const [row] = await getDb()
     .select()
     .from(requests)
-    .where(
-      and(
-        eq(requests.id, id),
-        or(eq(requests.requesterEmail, email), eq(requests.submittedByEmail, email)),
-      ),
-    )
+    .where(and(eq(requests.id, id), visibleTo(email)))
     .limit(1);
+  return withType(row);
+}
+
+/** The request's form type, resolved against its draft (a generated form lives there). */
+export function withType(row: (typeof requests)['$inferSelect'] | undefined) {
   if (!row) notFound();
-  const type = getWorkType(row.workType);
+  const data = readFormData(row.draft);
+  const type = resolveWorkType(row.workType, data);
   if (!type) notFound();
-  return { request: row, type, mode: row.mode as RequestMode, data: readFormData(row.draft) };
+  return { request: row, type, mode: row.mode as RequestMode, data };
+}
+
+/** Sender of requests made through the public link, until they give their own details. */
+export const PUBLIC_SENDER_EMAIL = 'guest@public-link.local';
+export const PUBLIC_SENDER_NAME = 'Guest (public link)';
+
+/** A request started on this public link. The link must be on; the request id is unguessable. */
+export async function getPublicRequest(linkId: string, id: string) {
+  if (!z.uuid().safeParse(id).success) notFound();
+  const [row] = await getDb()
+    .select()
+    .from(requests)
+    .where(and(eq(requests.id, id), eq(requests.publicLinkId, linkId)))
+    .limit(1);
+  return withType(row);
 }
 
 export async function listOwnRequests(email: string) {
@@ -83,9 +116,10 @@ export async function listOwnRequests(email: string) {
       submittedAt: requests.submittedAt,
       firstDraftOn: requests.firstDraftOn,
       finalFilesOn: requests.finalFilesOn,
+      publicLinkId: requests.publicLinkId,
     })
     .from(requests)
-    .where(or(eq(requests.requesterEmail, email), eq(requests.submittedByEmail, email)))
+    .where(visibleTo(email))
     .orderBy(desc(requests.updatedAt))
     .limit(100);
 }
@@ -113,10 +147,7 @@ export async function queryOwnRequests(
   opts: { tab: TabId; filters: RequestFilters; page: number; today: string },
 ) {
   const db = getDb();
-  const mine = and(
-    or(eq(requests.requesterEmail, email), eq(requests.submittedByEmail, email)),
-    ne(requests.status, 'cancelled'),
-  )!;
+  const mine = and(visibleTo(email), ne(requests.status, 'cancelled'))!;
   const filtered = and(mine, ...filterConditions(opts.filters, opts.today))!;
   const statuses = TABS.find((t) => t.id === opts.tab)!.statuses;
   const inTab = statuses ? and(filtered, inArray(requests.status, [...statuses]))! : filtered;
@@ -155,6 +186,7 @@ export async function queryOwnRequests(
       submittedAt: requests.submittedAt,
       firstDraftOn: requests.firstDraftOn,
       finalFilesOn: requests.finalFilesOn,
+      publicLinkId: requests.publicLinkId,
     })
     .from(requests)
     .where(inTab)

@@ -1,3 +1,5 @@
+import type { GeneratedForm } from './generate';
+
 /** Kinds of questions a form can ask. */
 export type FieldKind =
   | 'text'
@@ -8,7 +10,7 @@ export type FieldKind =
   | 'multi' // any of `options`
   | 'file'
   | 'brand' // searchable brand list
-  | 'person' // searchable user list (plain text until `people` exists)
+  | 'person' // pick from the approvers list; stores the email
   | 'auto'; // filled by the system, read-only
 
 export interface FieldDef {
@@ -75,6 +77,8 @@ export interface RequestFormData {
   notes?: string;
   /** Where AI-filled answers came from. Removed for a field once the requester changes it. */
   meta?: Record<string, FieldMeta>;
+  /** Generated form, for a request whose work type is `CUSTOM_TYPE_ID`. Set once, never by the client. */
+  form?: GeneratedForm;
 }
 
 export type FieldSource = 'chat' | 'ai';

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import type { RequestMode } from '../enums';
+import { approverLabel, matchApprover, type Approver } from './approvers';
 import { brandLabel, matchBrand, type Brand } from './brands';
 import {
   buildSections,
@@ -85,6 +86,7 @@ export function intakeInstructions(
   brands: readonly Brand[],
   /** Facts from the server the reply must reflect, e.g. a brand name that isn't on the list. */
   serverNotes: string[] = [],
+  approvers: readonly Approver[] = [],
 ): string {
   const type = state.workType ? getWorkType(state.workType) : undefined;
   const catalog = orderedWorkTypes()
@@ -111,12 +113,18 @@ export function intakeInstructions(
     '- choice fields: exactly one of the listed options, spelled exactly. multi fields: a subset of the options.',
     `- date fields: YYYY-MM-DD, only for dates the requester gave. Today is ${today} (Texas). Resolve "next Friday" etc. from today. A date without a year is its next occurrence (never a past date).`,
     '- brand field: the brand code (e.g. "01") when the brand is in the list below, also when the requester used another name for it. If they name a brand that is not in the list, return the name exactly as they said it; it goes to an admin, so ask which listed brand it belongs under.',
+    '- person field (approver): the email of one person from the approvers list below. If the requester names someone who is not on the list, leave it out and say they can pick from the list in the form.',
     '- Return only answers that are new or changed in this turn.',
     '',
     'Brands (code short · name, other names in brackets):',
     ...brands.map(
       (b) => `- ${brandLabel(b)}${b.aliases.length ? ` (${b.aliases.join(', ')})` : ''}`,
     ),
+    '',
+    'Approvers (name · role, email):',
+    ...(approvers.some((a) => a.active)
+      ? approvers.filter((a) => a.active).map((a) => `- ${approverLabel(a)}, ${a.email}`)
+      : ['- none yet']),
     '',
     'Work types (pick one id as soon as it is clear; "campaign" is for several pieces with one idea):',
     catalog,
@@ -160,6 +168,7 @@ export function applyIntakeTurn(
   state: IntakeState,
   turn: IntakeTurn,
   brands: readonly Brand[],
+  approvers: readonly Approver[] = [],
 ): { state: IntakeState; rejected: string[]; unknownBrands: string[] } {
   const next: IntakeState = {
     workType: state.workType,
@@ -197,6 +206,15 @@ export function applyIntakeTurn(
       }
       if (hit.via) note ??= `“${hit.via}” is ${brandLabel(hit.brand)}`;
       values = [hit.brand.code];
+    }
+    if (f?.kind === 'person') {
+      // Only someone on the approvers list; the model may give the email or the name.
+      const hit = a.values.map((v) => matchApprover(approvers, v)).find(Boolean);
+      if (!hit) {
+        rejected.push(a.fieldId);
+        continue;
+      }
+      values = [hit.email];
     }
     const value = f ? cleanValue(f, values) : undefined;
     // Product data only ever comes from the requester's own words.
