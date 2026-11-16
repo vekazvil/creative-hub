@@ -35,6 +35,12 @@ const {
   operations,
 } = schema;
 
+/** The brand column, or the answer in the brief for requests sent before the column was filled. */
+function brandOf(request: { brandCode: string | null }, data: RequestFormData) {
+  const fromBrief = data.values?.brand;
+  return request.brandCode || (typeof fromBrief === 'string' && fromBrief ? fromBrief : null);
+}
+
 const log = (msg: string) => console.log(`[jobs] ${msg}`);
 
 /** Read at call time: the web app and the worker load env differently. */
@@ -140,7 +146,7 @@ export function createJobRunner(db: Database) {
       .where(eq(projects.requestId, request.id))
       .limit(1);
     if (existing[0]) return existing[0];
-    const brandCode = request.brandCode;
+    const brandCode = brandOf(request, briefData);
     if (!brandCode) throw new Error('Request has no selected brand');
     const brand = await db.select().from(brands).where(eq(brands.code, brandCode)).limit(1);
     if (!brand[0]) throw new Error(`Unknown brand ${brandCode}`);
@@ -196,7 +202,7 @@ export function createJobRunner(db: Database) {
     const [brand] = await db
       .select()
       .from(brands)
-      .where(eq(brands.code, request.brandCode!))
+      .where(eq(brands.code, brandOf(request, briefData)!))
       .limit(1);
     if (!brand?.driveFolderId)
       throw new Error(`Brand ${request.brandCode} has no Google Drive folder ID`);
@@ -462,7 +468,8 @@ export function createJobRunner(db: Database) {
         .set({
           status: retry ? 'pending' : 'failed',
           lastError: message.slice(0, 2000),
-          nextAttemptAt: new Date(Date.now() + Math.min(60_000, 1_000 * 2 ** job.attempts)),
+          // 1, 2, 4… minutes, at most 30: a retry run never hits the same failure twice.
+          nextAttemptAt: new Date(Date.now() + Math.min(30, 2 ** (job.attempts - 1)) * 60_000),
         })
         .where(eq(outbox.id, job.id));
       await db.insert(events).values({
