@@ -60,7 +60,7 @@ export const formDataSchema = z.object({
   meta: z
     .record(
       z.string(),
-      z.object({ source: z.enum(['chat', 'ai']), note: z.string().max(500).optional() }),
+      z.object({ source: z.enum(['chat', 'notes', 'ai']), note: z.string().max(500).optional() }),
     )
     .optional(),
   form: storedFormSchema.optional(),

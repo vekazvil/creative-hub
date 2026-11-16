@@ -6,13 +6,14 @@ import {
   missingRequired,
   noticeCheck,
   subitemsText,
+  uncheckedAnswers,
   type Approver,
   type Brand,
   type RequestFormData,
   type RequestMode,
   type WorkType,
 } from '@creative-hub/core';
-import { CalendarClock, CheckCircle2, CircleAlert, Workflow } from 'lucide-react';
+import { CalendarClock, CheckCircle2, CircleAlert, Sparkles, Workflow } from 'lucide-react';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 
@@ -58,6 +59,7 @@ export function ReviewView({
     request.finalFilesOn ?? undefined,
   ]);
   const brand = request.brandCode ? findBrand(brands, request.brandCode) : undefined;
+  const unchecked = uncheckedAnswers(data).length;
 
   return (
     <main className="mx-auto max-w-6xl px-4 pt-8 sm:px-6">
@@ -136,6 +138,16 @@ export function ReviewView({
                 ? `${missing.length} required ${missing.length === 1 ? 'question' : 'questions'} left`
                 : 'All required questions answered'}
             </div>
+            {unchecked > 0 && (
+              <div className="mt-3 flex items-start gap-2 text-[15px] text-[#8a4b00] dark:text-[#ffb35c]">
+                <Sparkles className="mt-0.5 size-4 shrink-0" />
+                <span>
+                  {unchecked === 1
+                    ? 'One answer was filled in for you. Check it above before you send.'
+                    : `${unchecked} answers were filled in for you. Check them above before you send.`}
+                </span>
+              </div>
+            )}
           </div>
           <div className="rounded-3xl bg-card p-6 shadow-(--shadow-card)">
             <div className="mb-2 flex items-center gap-2">

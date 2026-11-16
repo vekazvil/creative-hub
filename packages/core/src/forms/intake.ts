@@ -10,7 +10,14 @@ import {
   requiredCount,
   type FormSection,
 } from './sections';
-import type { FieldDef, FieldMeta, FieldValue, RequestFormData, WorkType } from './types';
+import type {
+  FieldDef,
+  FieldMeta,
+  FieldSource,
+  FieldValue,
+  RequestFormData,
+  WorkType,
+} from './types';
 import { getWorkType, orderedWorkTypes } from './work-types';
 
 /** What the model returns on every chat turn. */
@@ -64,7 +71,7 @@ export const emptyIntakeState = (): IntakeState => ({
 });
 
 /** Fields the chat may fill: everything except files and system fields. */
-function chatFields(sections: FormSection[]): FieldDef[] {
+export function chatFields(sections: FormSection[]): FieldDef[] {
   return sections
     .filter((s) => s.pieceIndex === undefined)
     .flatMap((s) => s.fields)
@@ -178,16 +185,37 @@ export function applyIntakeTurn(
   };
   if (turn.workType && getWorkType(turn.workType)) next.workType = turn.workType;
 
-  const rejected: string[] = [];
   const type: WorkType | undefined = next.workType ? getWorkType(next.workType) : undefined;
   if (!type)
     return { state: next, rejected: turn.answers.map((a) => a.fieldId), unknownBrands: [] };
-  const unknownBrands: string[] = [];
+  const fields = chatFields(buildSections(type, next.mode, { values: next.values }));
+  const { rejected, unknownBrands } = mergeAnswers(next, fields, turn.answers, brands, approvers);
+  return { state: next, rejected, unknownBrands };
+}
 
-  const fields = new Map(
-    chatFields(buildSections(type, next.mode, { values: next.values })).map((f) => [f.id, f]),
-  );
-  for (const a of turn.answers) {
+/** One answer from the model, before it is checked. */
+export interface ModelAnswer {
+  fieldId: string;
+  values: string[];
+  source: FieldSource;
+  note: string | null;
+}
+
+/**
+ * Checks answers against the fields and writes the valid ones into `target` (mutated).
+ * Brands and approvers are resolved to the list; choices, dates and numbers must be valid.
+ */
+export function mergeAnswers(
+  target: { values: Record<string, FieldValue>; meta: Record<string, FieldMeta> },
+  fieldList: readonly FieldDef[],
+  answers: readonly ModelAnswer[],
+  brands: readonly Brand[],
+  approvers: readonly Approver[] = [],
+): { rejected: string[]; unknownBrands: string[] } {
+  const rejected: string[] = [];
+  const unknownBrands: string[] = [];
+  const fields = new Map(fieldList.map((f) => [f.id, f]));
+  for (const a of answers) {
     const f = fields.get(a.fieldId);
     let note = a.note;
     let values = a.values;
@@ -199,8 +227,8 @@ export function applyIntakeTurn(
         // A made-up code is just wrong; only a real name goes to an admin.
         if (said && !/^\d+\b/.test(said)) unknownBrands.push(said);
         // The requester named another brand: the old one no longer holds.
-        delete next.values[f.id];
-        delete next.meta[f.id];
+        delete target.values[f.id];
+        delete target.meta[f.id];
         rejected.push(a.fieldId);
         continue;
       }
@@ -218,14 +246,14 @@ export function applyIntakeTurn(
     }
     const value = f ? cleanValue(f, values) : undefined;
     // Product data only ever comes from the requester's own words.
-    if (!f || value === undefined || (f.id === 'products' && a.source !== 'chat')) {
+    if (!f || value === undefined || (f.id === 'products' && a.source === 'ai')) {
       rejected.push(a.fieldId);
       continue;
     }
-    next.values[f.id] = value;
-    next.meta[f.id] = { source: a.source, ...(note && { note }) };
+    target.values[f.id] = value;
+    target.meta[f.id] = { source: a.source, ...(note && { note }) };
   }
-  return { state: next, rejected, unknownBrands };
+  return { rejected, unknownBrands };
 }
 
 function cleanValue(f: FieldDef, values: string[]): FieldValue | undefined {

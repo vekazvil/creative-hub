@@ -95,10 +95,10 @@ export interface RequestFormData {
   form?: StoredForm;
 }
 
-export type FieldSource = 'chat' | 'ai';
+export type FieldSource = 'chat' | 'notes' | 'ai';
 
 export interface FieldMeta {
-  /** "chat": the requester said it. "ai": the assistant's suggestion. */
+  /** "chat": said in the chat. "notes": taken from the starting description. "ai": a suggestion. */
   source: FieldSource;
   note?: string;
 }

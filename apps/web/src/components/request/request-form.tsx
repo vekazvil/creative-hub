@@ -14,8 +14,10 @@ import {
   requiredCount,
   sectionValue,
   subitemsText,
+  uncheckedAnswers,
   type Approver,
   type Brand,
+  type FieldSource,
   type FieldValue,
   type FormSection,
   type RequestFormData,
@@ -133,6 +135,9 @@ export function RequestForm({
       return { ...d, form: rest };
     });
   const missing = useMemo(() => missingRequired(sections, data), [sections, data]);
+  const fromNotes = uncheckedAnswers(data).filter(
+    (id) => data.meta?.[id]?.source === 'notes',
+  ).length;
   const total = requiredCount(sections);
   const notice = noticeCheck([
     data.values[F.firstDraft] as string,
@@ -261,6 +266,13 @@ export function RequestForm({
                   <p className="max-h-48 overflow-auto text-sm leading-relaxed whitespace-pre-wrap text-muted-foreground">
                     {data.notes}
                   </p>
+                  {fromNotes > 0 && (
+                    <p className="mt-3 border-t border-border pt-3 text-sm text-foreground">
+                      {fromNotes === 1
+                        ? 'One answer is filled in from your notes. It’s marked in the form; check it and change it if it’s off.'
+                        : `${fromNotes} answers are filled in from your notes. They’re marked in the form; check them and change anything that’s off.`}
+                    </p>
+                  )}
                 </PanelCard>
               )}
               <PanelCard
@@ -546,17 +558,23 @@ function SectionCard({
   );
 }
 
-function SourceBadge({ source }: { source: 'chat' | 'ai' }) {
+const SOURCE_LABEL: Record<FieldSource, string> = {
+  chat: 'From the chat',
+  notes: 'From your notes',
+  ai: 'AI suggestion',
+};
+
+function SourceBadge({ source }: { source: FieldSource }) {
   return (
     <span
       className={cn(
         'rounded-full px-2 py-0.5 text-xs font-medium',
-        source === 'chat'
+        source !== 'ai'
           ? 'bg-accent text-accent-foreground'
           : 'bg-[#fff1df] text-[#8a4b00] dark:bg-[#3a2a12] dark:text-[#ffb35c]',
       )}
     >
-      {source === 'chat' ? 'From the chat' : 'AI suggestion'}
+      {SOURCE_LABEL[source]}
     </span>
   );
 }

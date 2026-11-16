@@ -19,6 +19,7 @@ import { eq } from 'drizzle-orm';
 
 import { getDb } from '../db';
 import { emptyFormData } from './data';
+import { prefillFromNotes } from './prefill';
 
 const { requests, briefVersions, events, outbox } = schema;
 
@@ -43,7 +44,12 @@ export async function insertDraft(opts: {
   const type = form ? customWorkType(form) : getWorkType(opts.typeId);
   if (!type) throw new Error('Unknown work type');
   const notes = opts.notes?.trim() || undefined;
-  const draft: RequestFormData = { ...emptyFormData(type.id, notes), ...(form && { form }) };
+  const draft = await prefillFromNotes(
+    type,
+    mode,
+    { ...emptyFormData(type.id, notes), ...(form && { form }) },
+    email,
+  );
   return getDb().transaction(async (tx) => {
     const [row] = await tx
       .insert(requests)
@@ -54,6 +60,7 @@ export async function insertDraft(opts: {
         mode,
         publicLinkId: publicLinkId ?? null,
         draft: draft as unknown as Record<string, unknown>,
+        ...listColumns(draft),
       })
       .returning({ id: requests.id });
     await tx.insert(events).values({
@@ -81,19 +88,23 @@ const isoOrNull = (v: unknown) =>
   typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null;
 const textOrNull = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : null);
 
+/** The fields we filter and sort by, copied into their own columns. */
+function listColumns(data: RequestFormData) {
+  const v = data.values;
+  return {
+    title: textOrNull(v[F.title]),
+    brandCode: textOrNull(v[F.brand]),
+    priority: PRIORITY[String(v[F.priority])] ?? 'normal',
+    firstDraftOn: isoOrNull(v[F.firstDraft]),
+    finalFilesOn: isoOrNull(v[F.finalFiles]),
+  };
+}
+
 /** Autosave. Also copies the fields we filter and sort by into their own columns. */
 export async function writeDraft(id: string, data: RequestFormData) {
-  const v = data.values;
   await getDb()
     .update(requests)
-    .set({
-      draft: data as unknown as Record<string, unknown>,
-      title: textOrNull(v[F.title]),
-      brandCode: textOrNull(v[F.brand]),
-      priority: PRIORITY[String(v[F.priority])] ?? 'normal',
-      firstDraftOn: isoOrNull(v[F.firstDraft]),
-      finalFilesOn: isoOrNull(v[F.finalFiles]),
-    })
+    .set({ draft: data as unknown as Record<string, unknown>, ...listColumns(data) })
     .where(eq(requests.id, id));
 }
 
