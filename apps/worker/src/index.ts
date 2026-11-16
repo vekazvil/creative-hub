@@ -8,12 +8,20 @@ import {
 import { createDb, schema } from '@creative-hub/db';
 import { and, eq, lte, or, sql } from 'drizzle-orm';
 import {
+  createMondayItem,
+  createMondaySubitem,
   ensureDriveFolder,
   findDriveChild,
+  findMondayItemByName,
+  findMondayUserIds,
   getDriveFile,
+  getMondayBoard,
+  listMondaySubitems,
   moveDriveFile,
   uploadDriveFile,
 } from '@creative-hub/connectors';
+
+import { COL, mondayProjectPlan } from './monday-project';
 
 const log = (msg: string) => console.log(`[worker] ${msg}`);
 const { db, pool } = createDb();
@@ -27,8 +35,15 @@ const {
   counters,
   projects,
   events,
+  operations,
 } = schema;
 const ROOT_FOLDER_ID = process.env.GOOGLE_DRIVE_ROOT_FOLDER_ID;
+const DRIVE_ON = !!(process.env.GOOGLE_SERVICE_ACCOUNT_JSON && ROOT_FOLDER_ID);
+const MONDAY_BOARD_ID = process.env.MONDAY_BOARD_ID;
+const MONDAY_ON = !!(process.env.MONDAY_API_TOKEN && MONDAY_BOARD_ID);
+/** People columns notify real people, so they stay empty unless this is turned on. */
+const MONDAY_ASSIGN_PEOPLE = process.env.MONDAY_ASSIGN_PEOPLE === 'true';
+const APP_URL = (process.env.APP_URL || process.env.BETTER_AUTH_URL || '').replace(/\/$/, '');
 const POLL_MS = 2_000;
 let stopping = false;
 let busy = false;
@@ -112,7 +127,7 @@ async function reserveProject(request: typeof requests.$inferSelect, briefData: 
   const brandCode = request.brandCode;
   if (!brandCode) throw new Error('Request has no selected brand');
   const brand = await db.select().from(brands).where(eq(brands.code, brandCode)).limit(1);
-  if (!brand[0]?.driveFolderId) throw new Error(`Brand ${brandCode} has no Google Drive folder ID`);
+  if (!brand[0]) throw new Error(`Unknown brand ${brandCode}`);
   const title = text(briefData.values.title) || `Request ${request.id.slice(0, 8)}`;
   const result = await db.transaction(async (tx) => {
     const [counter] = await tx
@@ -224,6 +239,98 @@ async function createProjectDrive(
   return { project, projectFolder, assetsFolder };
 }
 
+/**
+ * One step of creating a project (Drive folder, Monday item…), recorded in `operations` so a
+ * retried job skips what already succeeded. Returns the external id.
+ */
+async function runStep(
+  requestId: string,
+  operation: string,
+  fn: () => Promise<{ externalId: string; response?: Record<string, unknown> }>,
+): Promise<string> {
+  const [done] = await db
+    .select()
+    .from(operations)
+    .where(and(eq(operations.requestId, requestId), eq(operations.operation, operation)))
+    .limit(1);
+  if (done?.status === 'succeeded' && done.externalId) return done.externalId;
+  await db
+    .insert(operations)
+    .values({ requestId, operation, status: 'started', attempts: 1 })
+    .onConflictDoUpdate({
+      target: [operations.requestId, operations.operation],
+      set: { status: 'started', attempts: sql`${operations.attempts} + 1`, updatedAt: new Date() },
+    });
+  try {
+    const { externalId, response } = await fn();
+    await db
+      .update(operations)
+      .set({
+        status: 'succeeded',
+        externalId,
+        response: response ?? null,
+        error: null,
+        completedAt: new Date(),
+      })
+      .where(and(eq(operations.requestId, requestId), eq(operations.operation, operation)));
+    return externalId;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    await db
+      .update(operations)
+      .set({ status: 'failed', error: message.slice(0, 2000) })
+      .where(and(eq(operations.requestId, requestId), eq(operations.operation, operation)));
+    throw error;
+  }
+}
+
+/** The project item on the Master Board with its process subitems. Creates only, never deletes. */
+async function createMondayProject(
+  request: typeof requests.$inferSelect,
+  data: RequestFormData,
+  project: typeof projects.$inferSelect,
+  driveFolderId: string | undefined,
+) {
+  const type = resolveWorkType(request.workType, data);
+  if (!type) throw new Error('Unknown work type on request');
+  const [brand] = await db.select().from(brands).where(eq(brands.code, project.brandCode)).limit(1);
+  if (!brand) throw new Error(`Unknown brand ${project.brandCode}`);
+  const plan = mondayProjectPlan({
+    type,
+    data,
+    project,
+    brand,
+    briefUrl: `${APP_URL}/requests/${request.id}`,
+    driveUrl: driveFolderId ? `https://drive.google.com/drive/folders/${driveFolderId}` : undefined,
+  });
+  const board = await getMondayBoard(MONDAY_BOARD_ID!);
+  const group = board.groups.find((g) => g.title === plan.group);
+  const columnId = new Map(board.columns.map((c) => [c.title, c.id]));
+  const values: Record<string, unknown> = {};
+  for (const [title, value] of Object.entries(plan.values)) {
+    const id = columnId.get(title);
+    if (id) values[id] = value;
+  }
+  if (MONDAY_ASSIGN_PEOPLE && plan.approverEmail && columnId.has(COL.approver)) {
+    const id = (await findMondayUserIds([plan.approverEmail])).get(
+      plan.approverEmail.toLowerCase(),
+    );
+    if (id) values[columnId.get(COL.approver)!] = { personsAndTeams: [{ id, kind: 'person' }] };
+  }
+  const itemId =
+    (await findMondayItemByName(board.id, plan.name))?.id ??
+    (await createMondayItem({
+      boardId: board.id,
+      groupId: group?.id,
+      name: plan.name,
+      columnValues: values,
+    }));
+  const existing = new Set((await listMondaySubitems(itemId)).map((s) => s.name));
+  for (const name of plan.subitems)
+    if (!existing.has(name)) await createMondaySubitem(itemId, name);
+  return { externalId: itemId, response: { boardId: board.id, name: plan.name } };
+}
+
 async function processJob() {
   const job = await db.transaction(async (tx) => {
     const [row] = await tx
@@ -265,7 +372,31 @@ async function processJob() {
       .limit(1);
     if (!request || !version) throw new Error('Request or submitted brief was not found');
     const data = version.data as unknown as RequestFormData;
-    const { project, projectFolder } = await createProjectDrive(request, data);
+    const project = await reserveProject(request, data);
+    // Each step runs on its own: Monday still gets its item while Drive waits for access.
+    const failures: string[] = [];
+    let driveFolderId: string | undefined;
+    if (DRIVE_ON) {
+      try {
+        driveFolderId = await runStep(request.id, 'drive.folder', async () => {
+          const { projectFolder } = await createProjectDrive(request, data);
+          return { externalId: projectFolder.id };
+        });
+      } catch (error) {
+        failures.push(`Drive: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+    let mondayItemId: string | undefined;
+    if (MONDAY_ON) {
+      try {
+        mondayItemId = await runStep(request.id, 'monday.item', () =>
+          createMondayProject(request, data, project, driveFolderId),
+        );
+      } catch (error) {
+        failures.push(`Monday: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+    if (failures.length) throw new Error(failures.join(' | '));
     await db.transaction(async (tx) => {
       await tx
         .update(outbox)
@@ -277,7 +408,11 @@ async function processJob() {
         type: 'project.created',
         toStatus: 'submitted',
         briefVersion: 1,
-        data: { projectNumber: project.number, driveFolderId: projectFolder.id },
+        data: {
+          projectNumber: project.number,
+          ...(driveFolderId && { driveFolderId }),
+          ...(mondayItemId && { mondayItemId }),
+        },
       });
     });
     log(`created ${project.number} for request ${request.id}`);
@@ -303,7 +438,9 @@ async function processJob() {
   return true;
 }
 
-log(`${APP_NAME} worker started`);
+log(
+  `${APP_NAME} worker started (Drive ${DRIVE_ON ? 'on' : 'off'}, Monday ${MONDAY_ON ? `on, board ${MONDAY_BOARD_ID}` : 'off'})`,
+);
 const timer = setInterval(async () => {
   if (stopping || busy) return;
   busy = true;

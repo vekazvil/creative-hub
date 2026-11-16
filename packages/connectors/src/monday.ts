@@ -94,3 +94,75 @@ export async function checkMondayConnection(token?: string): Promise<MondayConne
     })),
   };
 }
+
+export interface MondayBoardShape {
+  id: string;
+  groups: { id: string; title: string }[];
+  columns: { id: string; title: string; type: string }[];
+}
+
+/** Groups and columns of a board, to find them by title. */
+export async function getMondayBoard(boardId: string): Promise<MondayBoardShape> {
+  const d = await mondayQuery<{ boards: MondayBoardShape[] }>(
+    `query($b:[ID!]){ boards(ids:$b){ id groups{ id title } columns{ id title type } } }`,
+    { b: [boardId] },
+  );
+  const board = d.boards[0];
+  if (!board) throw new MondayError(`Monday board ${boardId} not found or not visible`);
+  return board;
+}
+
+/** An item on the board with exactly this name, so a retried job finds what it made before. */
+export async function findMondayItemByName(boardId: string, name: string) {
+  const d = await mondayQuery<{
+    items_page_by_column_values: { items: { id: string; name: string }[] };
+  }>(
+    `query($b:ID!, $n:String!){ items_page_by_column_values(board_id:$b, limit:5, columns:[{column_id:"name", column_values:[$n]}]){ items{ id name } } }`,
+    { b: boardId, n: name },
+  );
+  return d.items_page_by_column_values.items.find((i) => i.name === name);
+}
+
+export async function createMondayItem(opts: {
+  boardId: string;
+  groupId?: string;
+  name: string;
+  columnValues: Record<string, unknown>;
+}) {
+  const d = await mondayQuery<{ create_item: { id: string } }>(
+    `mutation($b:ID!, $g:String, $n:String!, $v:JSON!){ create_item(board_id:$b, group_id:$g, item_name:$n, column_values:$v){ id } }`,
+    {
+      b: opts.boardId,
+      g: opts.groupId ?? null,
+      n: opts.name,
+      v: JSON.stringify(opts.columnValues),
+    },
+  );
+  return d.create_item.id;
+}
+
+export async function listMondaySubitems(itemId: string) {
+  const d = await mondayQuery<{ items: { subitems: { id: string; name: string }[] | null }[] }>(
+    `query($i:[ID!]){ items(ids:$i){ subitems{ id name } } }`,
+    { i: [itemId] },
+  );
+  return d.items[0]?.subitems ?? [];
+}
+
+export async function createMondaySubitem(parentItemId: string, name: string) {
+  const d = await mondayQuery<{ create_subitem: { id: string } }>(
+    `mutation($p:ID!, $n:String!){ create_subitem(parent_item_id:$p, item_name:$n){ id } }`,
+    { p: parentItemId, n: name },
+  );
+  return d.create_subitem.id;
+}
+
+/** Monday user ids for these emails; unknown emails are left out. */
+export async function findMondayUserIds(emails: string[]) {
+  if (!emails.length) return new Map<string, number>();
+  const d = await mondayQuery<{ users: { id: string; email: string }[] }>(
+    `query($e:[String]){ users(emails:$e){ id email } }`,
+    { e: emails },
+  );
+  return new Map(d.users.map((u) => [u.email.toLowerCase(), Number(u.id)]));
+}
