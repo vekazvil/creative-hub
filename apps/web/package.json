@@ -20,6 +20,7 @@
     "@creative-hub/connectors": "workspace:*",
     "@creative-hub/core": "workspace:*",
     "@creative-hub/db": "workspace:*",
+    "@creative-hub/jobs": "workspace:*",
     "better-auth": "^1.7.17",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

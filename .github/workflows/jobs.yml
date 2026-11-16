@@ -1,0 +1,28 @@
+name: Outbox jobs
+
+# Retries Creative Hub's outbox jobs (Drive folder, Monday item) every 5 minutes. Vercel Hobby
+# cron only runs once a day; on Pro, the cron in apps/web/vercel.json can take this over.
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: outbox-jobs
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Run due jobs on staging
+        env:
+          JOBS_URL: ${{ secrets.JOBS_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          VERCEL_BYPASS: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+        run: |
+          curl --fail-with-body --silent --show-error --max-time 90 \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            -H "x-vercel-protection-bypass: $VERCEL_BYPASS" \
+            "$JOBS_URL"

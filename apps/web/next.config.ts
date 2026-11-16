@@ -11,7 +11,12 @@ const nextConfig: NextConfig = {
   // One Docker image for web and worker (task 1.8) uses the standalone output.
   output: 'standalone',
   outputFileTracingRoot: new URL('../../', import.meta.url).pathname,
-  transpilePackages: ['@creative-hub/core', '@creative-hub/db', '@creative-hub/connectors'],
+  transpilePackages: [
+    '@creative-hub/core',
+    '@creative-hub/db',
+    '@creative-hub/connectors',
+    '@creative-hub/jobs',
+  ],
 };
 
 export default nextConfig;

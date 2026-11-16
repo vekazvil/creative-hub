@@ -18,6 +18,7 @@ import { schema } from '@creative-hub/db';
 import { eq } from 'drizzle-orm';
 
 import { getDb } from '../db';
+import { processJobsAfterResponse } from '../jobs';
 import { emptyFormData } from './data';
 import { prefillFromNotes } from './prefill';
 
@@ -162,5 +163,6 @@ export async function submitDraft(
         .values({ requestId: request.id, kind: 'project.create', payload: { briefVersion: 1 } });
     }
   });
+  if (!urgent) processJobsAfterResponse();
   return { ok: true as const };
 }

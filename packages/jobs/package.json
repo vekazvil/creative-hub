@@ -1,0 +1,19 @@
+{
+  "name": "@creative-hub/jobs",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@creative-hub/connectors": "workspace:*",
+    "@creative-hub/core": "workspace:*",
+    "@creative-hub/db": "workspace:*",
+    "drizzle-orm": "^0.45.4"
+  }
+}
