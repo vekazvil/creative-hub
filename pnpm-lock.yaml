@@ -281,6 +281,9 @@ importers:
 
   apps/worker:
     dependencies:
+      drizzle-orm:
+        specifier: ^0.45.4
+        version: 0.45.4(@types/pg@8.23.1)(kysely@0.29.8)(pg@8.23.1)
       '@creative-hub/connectors':
         specifier: workspace:*
         version: link:../../packages/connectors

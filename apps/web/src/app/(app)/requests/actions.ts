@@ -13,6 +13,7 @@ import {
   type TypeSuggestionResult,
   REQUEST_MODES,
   type RequestFormData,
+  withRemovedFields,
 } from '@creative-hub/core';
 import { schema } from '@creative-hub/db';
 import { eq } from 'drizzle-orm';
@@ -140,13 +141,18 @@ export async function suggestRequestType(
   }
 }
 
-/** Autosave. The generated form, if any, stays as stored: the client can't change it. */
+/** Autosave. The generated form stays as stored; the client can only remove its questions. */
 export async function saveDraft(id: string, data: RequestFormData) {
   const { user } = await requireSession();
   const parsed = formDataSchema.parse(data) as RequestFormData;
   const { request, data: stored } = await getOwnRequest(id, user.email);
   if (request.status !== 'draft') return { ok: false as const, reason: 'not_draft' };
-  await writeDraft(id, { ...parsed, form: stored.form });
+  await writeDraft(id, {
+    ...parsed,
+    form:
+      stored.form &&
+      withRemovedFields(stored.form, parsed.form ? parsed.form.removed : stored.form.removed),
+  });
   return { ok: true as const, savedAt: new Date().toISOString() };
 }
 

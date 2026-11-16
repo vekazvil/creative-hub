@@ -4,7 +4,9 @@ import {
   buildSections,
   CAMPAIGN_PIECE_TYPES,
   CUSTOM_TYPE_ID,
+  customWorkType,
   F,
+  generatedFieldIds,
   getWorkType,
   isFilled,
   missingRequired,
@@ -28,8 +30,10 @@ import {
   Clock,
   Lightbulb,
   Plus,
+  RotateCcw,
   StickyNote,
   Trash2,
+  X,
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import Link from 'next/link';
@@ -62,6 +66,7 @@ interface Props {
   changeTypeHref?: string;
   /** Replaces the requester field's hint, e.g. on a public link where there is no account. */
   requesterHint?: string;
+  uploadUrl?: string;
 }
 
 const fieldAnchor = (sectionId: string, fieldId: string) => `f-${sectionId}-${fieldId}`;
@@ -80,6 +85,7 @@ export function RequestForm({
   reviewHref = `/requests/${requestId}/review`,
   changeTypeHref = '/requests/new',
   requesterHint,
+  uploadUrl,
 }: Props) {
   const router = useRouter();
   const [data, setData] = useState<RequestFormData>(initial);
@@ -91,7 +97,41 @@ export function RequestForm({
   );
   const { state, flush } = useAutosave(data, save);
 
-  const sections = useMemo(() => buildSections(type, mode, data), [type, mode, data]);
+  // A generated form follows the draft, so a removed question leaves the form right away.
+  const form = data.form;
+  const liveType = useMemo(
+    () => (type.id === CUSTOM_TYPE_ID && form ? customWorkType(form) : type),
+    [type, form],
+  );
+  const sections = useMemo(() => buildSections(liveType, mode, data), [liveType, mode, data]);
+  const generated = useMemo(() => {
+    if (type.id !== CUSTOM_TYPE_ID || !form) return undefined;
+    const ids = generatedFieldIds(form);
+    const removed = new Set(form.removed);
+    const left = ids.length - removed.size;
+    return {
+      ids,
+      all: new Set(ids),
+      // The last question stays: a generated form with none would ask nothing about the work.
+      removable: left > 1 ? new Set(ids.filter((_, i) => !removed.has(i))) : new Set<string>(),
+      removedCount: removed.size,
+    };
+  }, [type.id, form]);
+
+  // Answers of a removed question stay in the draft, so bringing it back brings them back too.
+  const removeField = (fieldId: string) =>
+    setData((d) => {
+      if (!d.form || !generated) return d;
+      const index = generated.ids.indexOf(fieldId);
+      if (index < 0) return d;
+      return { ...d, form: { ...d.form, removed: [...(d.form.removed ?? []), index] } };
+    });
+  const restoreFields = () =>
+    setData((d) => {
+      if (!d.form) return d;
+      const { removed: _removed, ...rest } = d.form;
+      return { ...d, form: rest };
+    });
   const missing = useMemo(() => missingRequired(sections, data), [sections, data]);
   const total = requiredCount(sections);
   const notice = noticeCheck([
@@ -189,12 +229,25 @@ export function RequestForm({
                   data={data}
                   requester={requester}
                   requesterHint={requesterHint}
+                  requestId={requestId}
+                  uploadUrl={uploadUrl}
+                  onUploadsChange={(uploads) => setData((d) => ({ ...d, uploads }))}
                   showErrors={showErrors}
                   missingSet={missingSet}
                   onChange={setValue}
                   onRemove={
                     section.pieceIndex !== undefined && (data.pieces?.length ?? 0) > 1
                       ? () => removePiece(section.pieceIndex!)
+                      : undefined
+                  }
+                  generated={
+                    generated && section.fields.some((f) => generated.all.has(f.id))
+                      ? {
+                          removable: generated.removable,
+                          removedCount: generated.removedCount,
+                          onRemove: removeField,
+                          onRestore: restoreFields,
+                        }
                       : undefined
                   }
                 />
@@ -310,19 +363,33 @@ function SectionCard({
   data,
   requester,
   requesterHint,
+  requestId,
+  uploadUrl,
+  onUploadsChange,
   showErrors,
   missingSet,
   onChange,
   onRemove,
+  generated,
 }: {
   section: FormSection;
   data: RequestFormData;
   requester: string;
   requesterHint?: string;
+  requestId: string;
+  uploadUrl?: string;
+  onUploadsChange: (uploads: NonNullable<RequestFormData['uploads']>) => void;
   showErrors: boolean;
   missingSet: Set<string>;
   onChange: (s: FormSection, fieldId: string, v: FieldValue) => void;
   onRemove?: () => void;
+  /** The AI-written questions: each can be removed, and removed ones brought back. */
+  generated?: {
+    removable: Set<string>;
+    removedCount: number;
+    onRemove: (fieldId: string) => void;
+    onRestore: () => void;
+  };
 }) {
   const isPiece = section.pieceIndex !== undefined;
   const [open, setOpen] = useState(!isPiece || section.pieceIndex === 0);
@@ -383,62 +450,95 @@ function SectionCard({
             className="overflow-hidden"
           >
             <div className="grid gap-x-5 gap-y-6 pt-6 sm:grid-cols-2">
-              {section.fields.map((field) => {
-                const id = fieldAnchor(section.id, field.id);
-                const invalid = showErrors && missingSet.has(`${section.id}:${field.id}`);
-                const meta = section.pieceIndex === undefined ? data.meta?.[field.id] : undefined;
-                return (
-                  <div
-                    key={field.id}
-                    id={id}
-                    className={cn(
-                      'scroll-mt-28 space-y-2',
-                      field.half ? 'sm:col-span-1' : 'sm:col-span-2',
-                    )}
-                  >
-                    <div className="flex flex-wrap items-center gap-2">
-                      <label
-                        id={`${id}-input-label`}
-                        htmlFor={`${id}-input`}
-                        className="block text-[15px] font-medium"
-                      >
-                        {field.label}
-                        {field.required && <span className="ml-0.5 text-destructive">*</span>}
-                      </label>
-                      {meta && <SourceBadge source={meta.source} />}
-                    </div>
-                    <FieldControl
-                      id={`${id}-input`}
-                      field={field}
-                      value={sectionValue(data, section, field.id)}
-                      onChange={(v) => onChange(section, field.id, v)}
-                      requester={requester}
-                      invalid={invalid}
-                    />
-                    <AnimatePresence initial={false}>
-                      {invalid && (
-                        <motion.p
-                          initial={{ opacity: 0, height: 0 }}
-                          animate={{ opacity: 1, height: 'auto' }}
-                          exit={{ opacity: 0, height: 0 }}
-                          className="overflow-hidden text-sm text-destructive"
-                        >
-                          This one is required.
-                        </motion.p>
+              <AnimatePresence initial={false} mode="popLayout">
+                {section.fields.map((field) => {
+                  const id = fieldAnchor(section.id, field.id);
+                  const invalid = showErrors && missingSet.has(`${section.id}:${field.id}`);
+                  const meta = section.pieceIndex === undefined ? data.meta?.[field.id] : undefined;
+                  const removable = generated?.removable.has(field.id);
+                  return (
+                    <motion.div
+                      key={field.id}
+                      id={id}
+                      layout
+                      initial={{ opacity: 0, scale: 0.98 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.98, transition: { duration: 0.15 } }}
+                      className={cn(
+                        'group/field scroll-mt-28 space-y-2',
+                        field.half ? 'sm:col-span-1' : 'sm:col-span-2',
                       )}
-                    </AnimatePresence>
-                    {meta?.note && !invalid && (
-                      <p className="text-sm text-[#8a4b00] dark:text-[#ffb35c]">{meta.note}</p>
-                    )}
-                    {field.hint && field.kind !== 'file' && !invalid && (
-                      <p className="text-sm text-muted-foreground">
-                        {field.id === F.requester && requesterHint ? requesterHint : field.hint}
-                      </p>
-                    )}
-                  </div>
-                );
-              })}
+                    >
+                      <div className="flex flex-wrap items-center gap-2">
+                        <label
+                          id={`${id}-input-label`}
+                          htmlFor={`${id}-input`}
+                          className="block text-[15px] font-medium"
+                        >
+                          {field.label}
+                          {field.required && <span className="ml-0.5 text-destructive">*</span>}
+                        </label>
+                        {meta && <SourceBadge source={meta.source} />}
+                        {removable && (
+                          <button
+                            type="button"
+                            onClick={() => generated!.onRemove(field.id)}
+                            aria-label={`Remove the question “${field.label}”`}
+                            title="Remove this question"
+                            className="ml-auto flex size-7 items-center justify-center rounded-full text-muted-foreground transition-all duration-200 ease-(--ease-apple) hover:bg-muted hover:text-foreground focus-visible:opacity-100 focus-visible:ring-4 focus-visible:ring-ring/25 focus-visible:outline-none sm:opacity-0 sm:group-focus-within/field:opacity-100 sm:group-hover/field:opacity-100"
+                          >
+                            <X className="size-4" aria-hidden />
+                          </button>
+                        )}
+                      </div>
+                      <FieldControl
+                        id={`${id}-input`}
+                        field={field}
+                        value={sectionValue(data, section, field.id)}
+                        onChange={(v) => onChange(section, field.id, v)}
+                        requester={requester}
+                        invalid={invalid}
+                        requestId={requestId}
+                        uploadUrl={uploadUrl}
+                        uploads={data.uploads ?? []}
+                        onUploadsChange={onUploadsChange}
+                      />
+                      <AnimatePresence initial={false}>
+                        {invalid && (
+                          <motion.p
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: 'auto' }}
+                            exit={{ opacity: 0, height: 0 }}
+                            className="overflow-hidden text-sm text-destructive"
+                          >
+                            This one is required.
+                          </motion.p>
+                        )}
+                      </AnimatePresence>
+                      {meta?.note && !invalid && (
+                        <p className="text-sm text-[#8a4b00] dark:text-[#ffb35c]">{meta.note}</p>
+                      )}
+                      {field.hint && field.kind !== 'file' && !invalid && (
+                        <p className="text-sm text-muted-foreground">
+                          {field.id === F.requester && requesterHint ? requesterHint : field.hint}
+                        </p>
+                      )}
+                    </motion.div>
+                  );
+                })}
+              </AnimatePresence>
             </div>
+            {generated && generated.removedCount > 0 && (
+              <button
+                type="button"
+                onClick={generated.onRestore}
+                className="mt-6 inline-flex items-center gap-1.5 text-[15px] font-medium text-primary hover:underline"
+              >
+                <RotateCcw className="size-4" aria-hidden />
+                Bring back {generated.removedCount} removed{' '}
+                {generated.removedCount === 1 ? 'question' : 'questions'}
+              </button>
+            )}
           </motion.div>
         )}
       </AnimatePresence>

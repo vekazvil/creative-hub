@@ -17,6 +17,7 @@
   "dependencies": {
     "@creative-hub/connectors": "workspace:*",
     "@creative-hub/core": "workspace:*",
-    "@creative-hub/db": "workspace:*"
+    "@creative-hub/db": "workspace:*",
+    "drizzle-orm": "^0.45.4"
   }
 }

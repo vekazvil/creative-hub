@@ -1,4 +1,4 @@
-import type { GeneratedForm } from './generate';
+import type { StoredForm } from './generate';
 
 /** Kinds of questions a form can ask. */
 export type FieldKind =
@@ -69,16 +69,30 @@ export type FieldValue = string | string[];
 export type FieldValues = Record<string, FieldValue>;
 
 /** Everything the requester has entered, stored as the draft and later as a brief version. */
+export interface UploadedFileRef {
+  id: string;
+  name: string;
+  parentId: string;
+  fieldId: string;
+  mimeType: string;
+  size: number;
+}
+
 export interface RequestFormData {
   values: FieldValues;
+  /** Drive staging references for files selected in the intake form. */
+  uploads?: UploadedFileRef[];
   /** Campaign only: one entry per piece, each with its own type and answers. */
   pieces?: { type: string; values: FieldValues }[];
   /** Notes the requester pasted at the start, kept for reference. */
   notes?: string;
   /** Where AI-filled answers came from. Removed for a field once the requester changes it. */
   meta?: Record<string, FieldMeta>;
-  /** Generated form, for a request whose work type is `CUSTOM_TYPE_ID`. Set once, never by the client. */
-  form?: GeneratedForm;
+  /**
+   * Generated form, for a request whose work type is `CUSTOM_TYPE_ID`. Set once by the server;
+   * the client may only change which questions are `removed`.
+   */
+  form?: StoredForm;
 }
 
 export type FieldSource = 'chat' | 'ai';

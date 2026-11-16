@@ -5,7 +5,9 @@ import {
   customWorkType,
   fallbackGeneratedForm,
   generatedFormSchema,
+  generatedFieldIds,
   resolveWorkType,
+  withRemovedFields,
   type GeneratedForm,
 } from './generate';
 import { buildSections, F, missingRequired } from './sections';
@@ -35,7 +37,12 @@ const form: GeneratedForm = {
     field({ label: 'Pages' }),
     field({ label: 'Title', kind: 'text' }),
     field({ label: 'Paper', kind: 'choice', options: ['Matte'] }),
-    field({ label: 'Finish', kind: 'multi', options: ['Gloss', 'Matte', 'Gloss'], required: false }),
+    field({
+      label: 'Finish',
+      kind: 'multi',
+      options: ['Gloss', 'Matte', 'Gloss'],
+      required: false,
+    }),
   ],
 };
 
@@ -74,5 +81,19 @@ describe('generated forms', () => {
   it('has a demo form that passes its own schema', () => {
     const demo = fallbackGeneratedForm('A van wrap for the new Doña María line. Both sides.');
     expect(generatedFormSchema.parse(demo).name).toBe('A van wrap for the new Doña María line');
+  });
+
+  it('drops removed questions but keeps the ids of the others', () => {
+    const ids = generatedFieldIds(form);
+    const type = customWorkType({ ...form, removed: [0, 2] });
+    expect(type.fields.map((f) => f.id)).toEqual([ids[1], ids[3], ids[4]]);
+    expect(type.fields[0]!.id).toBe('x_pages_2');
+  });
+
+  it('takes only valid removals from the client and always keeps one question', () => {
+    expect(withRemovedFields(form, [3, 1, 1, -1, 9, 1.5]).removed).toEqual([1, 3]);
+    expect(withRemovedFields({ ...form, removed: [2] }, []).removed).toBeUndefined();
+    expect(withRemovedFields({ ...form, removed: [2] }, [0, 1, 2, 3, 4]).removed).toEqual([2]);
+    expect(withRemovedFields(form, undefined)).toEqual(form);
   });
 });

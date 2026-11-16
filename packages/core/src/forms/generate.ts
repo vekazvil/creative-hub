@@ -69,6 +69,32 @@ export const generatedFormSchema = z.object({
 });
 export type GeneratedForm = z.infer<typeof generatedFormSchema>;
 
+/**
+ * The generated form as stored on the draft. The requester can drop questions they don't need:
+ * `removed` holds their positions, so the questions themselves stay as AI wrote them and a removed
+ * one can be brought back.
+ */
+export const storedFormSchema = generatedFormSchema.extend({
+  removed: z.array(z.number().int().min(0)).max(12).optional(),
+});
+export type StoredForm = z.infer<typeof storedFormSchema>;
+
+/**
+ * The stored form with the requester's removals applied. Only `removed` comes from the client, so
+ * questions can be dropped but never added or rewritten. At least one question always stays.
+ */
+export function withRemovedFields(
+  stored: StoredForm,
+  removed: readonly number[] | undefined,
+): StoredForm {
+  const valid = [...new Set(removed ?? [])]
+    .filter((i) => Number.isInteger(i) && i >= 0 && i < stored.fields.length)
+    .sort((a, b) => a - b);
+  if (valid.length >= stored.fields.length) return stored;
+  const { removed: _old, ...form } = stored;
+  return valid.length ? { ...form, removed: valid } : form;
+}
+
 /** What every form already asks, so the model does not ask it again. */
 const ALREADY_ASKED =
   'title, brand, co-brands, language, products and SKUs, objective, audience, key message, requester, first draft date, final files date, approver, priority, creative freedom, budget, file uploads and links';
@@ -160,14 +186,28 @@ export function fallbackGeneratedForm(description: string): GeneratedForm {
 /** Shared field ids: a generated question must not take one, or it would overwrite that answer. */
 const RESERVED_IDS = new Set<string>(Object.values(F));
 
-function toFields(form: GeneratedForm): FieldDef[] {
+/**
+ * Field id of every generated question, removed ones included, so an id never moves to another
+ * question when one is removed or brought back.
+ */
+export function generatedFieldIds(form: GeneratedForm): string[] {
   const used = new Set(RESERVED_IDS);
-  const fields: FieldDef[] = [];
-  for (const f of form.fields) {
+  return form.fields.map((f) => {
     const base = fieldId(f.label) || 'question';
     let id = `x_${base}`;
     for (let n = 2; used.has(id); n++) id = `x_${base}_${n}`;
     used.add(id);
+    return id;
+  });
+}
+
+function toFields(form: StoredForm): FieldDef[] {
+  const ids = generatedFieldIds(form);
+  const removed = new Set(form.removed);
+  const fields: FieldDef[] = [];
+  for (const [i, f] of form.fields.entries()) {
+    if (removed.has(i)) continue;
+    const id = ids[i]!;
     const options = [...new Set(f.options.map((o) => o.trim()).filter(Boolean))];
     // A choice without options can't be answered: ask it as text instead.
     const kind =
@@ -187,7 +227,7 @@ function toFields(form: GeneratedForm): FieldDef[] {
 }
 
 /** A generated form as a work type, so the form, the checks and the brief treat it like any other. */
-export function customWorkType(form: GeneratedForm): WorkType {
+export function customWorkType(form: StoredForm): WorkType {
   return {
     id: CUSTOM_TYPE_ID,
     code: form.code,

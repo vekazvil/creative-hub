@@ -5,6 +5,29 @@ Izvor: Claude Doc https://claude.ai/artifact/6vnyuTAJpEiroQYc2SCkCR (Nov 2, 2026
 Ovo su 54 zadatka do prelaska 11. 12., redom kojim ih radiš. U svakoj sedmici prvo ide ono što drugi čekaju od tebe, a na kraju je provjera kapije. Kad zadatak čeka pristup, nastavi na fake verziji i vrati se čim pristup stigne.
 Kalendar i arhitektura: `docs/PLAN.md`. Forme i UI: `docs/WIREFRAME.md`.
 
+## Sa sastanka „Workflow Product Sync“
+
+Prototip je pregledan. Prije nego briefovi idu creative timu, flow treba doraditi po feedbacku. Redoslijed je dogovoren: ove sedmice integracije (Monday i Drive), dok se feedback skuplja, a zatim implementacija feedbacka. Alexov projekat je prioritet.
+
+**Naše (Vekaz):**
+
+- [ ] W.1 Deploy sljedećeg koraka intakea: polja popunjena iz početnog opisa, a requester ih pregleda i potvrdi prije slanja.
+- [x] W.2 Uklanjanje nepotrebnih AI pitanja na formi koju napravi AI. Svako pitanje ima „×“, uklonjena se mogu vratiti, a bar jedno ostaje. Server prima samo uklanjanje, ne nova ni izmijenjena pitanja. Gotovo u kodu, čeka deploy (W.1).
+- [ ] W.3 Monday: projekat s taskovima, ne samo jedan item. Uz to lista potrebnih asseta koja se može pratiti, s količinom i dimenzijama (npr. 16 e-commerce bannera). Treba pokriti i assete koji fale u početnom briefu.
+- [ ] W.4 Google Drive integracija: folder projekta u folderu branda, brief PDF i uploadi u `Briefing and Assets`. Kod je spreman, a Shared Drive `Creative Hub (test)` je napravljen na vilorefoods.com. **Blokirano:** org politika zabranjuje ključ za service account `creative-hub-drive@creative-hub-514814.iam.gserviceaccount.com`. Čekamo da njihov admin isključi politiku za projekat `creative-hub-514814`, ili prelazimo na pristup bez ključa. Detalji su u `docs/GOOGLE_DRIVE_TEST.md`.
+- [ ] W.5 Povezati alat s kontekstom iz Mondaya, Drivea i Slacka.
+- [ ] W.6 Agent za timeline: iz konteksta projekta predlaže korake (razvoj koncepta, legal review…) i realan rok, koji se requesteru kaže prije nego projekat stigne timu. Agent koristi kontekst koji raste, znanje i prava po ulogama, a ne novi LLM.
+- [x] W.7 Exportovati ekrane flowa u Figmu i poslati ih Florence. Gotovo, sve je na Figmi.
+- [ ] W.8 Implementirati feedback iz zajedničkog dokumenta kad stigne, poslije integracija. Ovo uključuje skraćivanje forme ako reviewer predloži da se izbace pitanja.
+
+**Čekamo od drugih:**
+
+- [ ] W.9 Florence: brand guidelines za izmjene stila. Figma design system ne postoji, pa do tada koristimo javne stilove.
+- [ ] W.10 Reviewer (shared device): screenshotovi i komentari po stranicama, prijedlog pitanja za izbacivanje, objedinjeno s Naborom. Link na feedback dokument šalje Vekazu na Slack.
+- [ ] W.11 Nabor: prolazi kroz flow i dodaje feedback u dokument.
+- [ ] W.12 Nabor: kopira dio glavnog Monday boarda u postojeći sandbox kao uzorak (ne cijeli board). Treba nam za W.3.
+- [ ] W.13 Admin vilorefoods.com: override `iam.disableServiceAccountKeyCreation` za projekat `creative-hub-514814` i dozvola da se service account doda u Shared Drive. Treba nam za W.4.
+
 ## Sedmica 1 · 2.–6. 11. · Setup
 
 Kostur i jezgro na stagingu, svi pristupi se traže prvog dana. Kapija 1 je 6. 11.: test workspace, developer pristup i OpenAI ključ.

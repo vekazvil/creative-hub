@@ -13,6 +13,7 @@ export default tseslint.config(
       '**/.next/',
       '**/coverage/',
       'docs/reference/',
+      '.playwright-mcp/',
       '**/next-env.d.ts',
     ],
   },

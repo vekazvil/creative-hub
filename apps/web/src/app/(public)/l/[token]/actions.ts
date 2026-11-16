@@ -8,6 +8,7 @@ import {
   REQUEST_MODES,
   type GeneratedForm,
   type RequestFormData,
+  withRemovedFields,
 } from '@creative-hub/core';
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
@@ -120,13 +121,18 @@ export async function buildFormWithAi(
   redirect(`/l/${token}/r/${id}`);
 }
 
-/** Autosave. The generated form stays as stored: the client can't change it. */
+/** Autosave. The generated form stays as stored; the client can only remove its questions. */
 export async function savePublicDraft(token: string, id: string, data: RequestFormData) {
   const link = await getActiveLink(token);
   const parsed = formDataSchema.parse(data) as RequestFormData;
   const { request, data: stored } = await getPublicRequest(link.id, id);
   if (request.status !== 'draft') return { ok: false as const, reason: 'not_draft' };
-  await writeDraft(id, { ...parsed, form: stored.form });
+  await writeDraft(id, {
+    ...parsed,
+    form:
+      stored.form &&
+      withRemovedFields(stored.form, parsed.form ? parsed.form.removed : stored.form.removed),
+  });
   return { ok: true as const, savedAt: new Date().toISOString() };
 }
 

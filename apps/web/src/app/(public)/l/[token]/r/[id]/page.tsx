@@ -30,6 +30,7 @@ export default async function PublicRequestPage({
     return (
       <RequestForm
         requestId={id}
+        uploadUrl={`/api/requests/${id}/uploads?token=${encodeURIComponent(token)}`}
         type={type}
         mode={mode}
         initial={data}

@@ -2,7 +2,7 @@ import 'server-only';
 
 import {
   DEFAULT_CAMPAIGN_PIECES,
-  generatedFormSchema,
+  storedFormSchema,
   resolveWorkType,
   type RequestFormData,
   type RequestMode,
@@ -39,6 +39,19 @@ const valuesSchema = z.record(
 
 export const formDataSchema = z.object({
   values: valuesSchema,
+  uploads: z
+    .array(
+      z.object({
+        id: z.string().max(200),
+        name: z.string().max(255),
+        parentId: z.string().max(200),
+        fieldId: z.string().max(200),
+        mimeType: z.string().max(200),
+        size: z.number().int().nonnegative(),
+      }),
+    )
+    .max(100)
+    .optional(),
   pieces: z
     .array(z.object({ type: z.string(), values: valuesSchema }))
     .max(20)
@@ -50,7 +63,7 @@ export const formDataSchema = z.object({
       z.object({ source: z.enum(['chat', 'ai']), note: z.string().max(500).optional() }),
     )
     .optional(),
-  form: generatedFormSchema.optional(),
+  form: storedFormSchema.optional(),
 });
 
 export function emptyFormData(typeId: string, notes?: string): RequestFormData {

@@ -11,6 +11,7 @@ import {
   type Brand,
   type FieldDef,
   type FieldValue,
+  type UploadedFileRef,
 } from '@creative-hub/core';
 import { Check, ChevronsUpDown, FileText, Upload, X } from 'lucide-react';
 import { motion } from 'motion/react';
@@ -34,6 +35,10 @@ export interface ControlProps {
   onChange: (value: FieldValue) => void;
   requester: string;
   invalid?: boolean;
+  requestId?: string;
+  uploadUrl?: string;
+  uploads?: UploadedFileRef[];
+  onUploadsChange?: (uploads: UploadedFileRef[]) => void;
 }
 
 export function FieldControl(props: ControlProps) {
@@ -402,15 +407,52 @@ function ApproverPicker({ id, field, value, onChange, invalid }: ControlProps) {
   );
 }
 
-/** Lists chosen files. Upload to the project folder arrives with the Drive connector. */
-function FilePicker({ id, field, value, onChange }: ControlProps) {
+/** Uploads selected files to the private Drive staging folder for this request. */
+function FilePicker({
+  id,
+  field,
+  value,
+  onChange,
+  requestId,
+  uploadUrl,
+  uploads = [],
+  onUploadsChange,
+}: ControlProps) {
   const names = Array.isArray(value) ? value : [];
   const [over, setOver] = useState(false);
-  const add = (files: FileList | null) => {
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState('');
+  const add = async (files: FileList | null) => {
     if (!files) return;
-    const next = [...names];
-    for (const f of Array.from(files)) if (!next.includes(f.name)) next.push(f.name);
-    onChange(next);
+    setUploadError('');
+    setUploading(true);
+    try {
+      const added: UploadedFileRef[] = [];
+      for (const file of Array.from(files)) {
+        if (uploads.some((upload) => upload.fieldId === field.id && upload.name === file.name))
+          continue;
+        const body = new FormData();
+        body.set('file', file);
+        body.set('fieldId', field.id);
+        const response = await fetch(uploadUrl ?? `/api/requests/${requestId}/uploads`, {
+          method: 'POST',
+          body,
+        });
+        const result = (await response.json()) as { upload?: UploadedFileRef; error?: string };
+        if (!response.ok || !result.upload)
+          throw new Error(result.error ?? `Could not upload ${file.name}`);
+        added.push(result.upload);
+      }
+      onUploadsChange?.([...uploads, ...added]);
+      onChange([
+        ...names,
+        ...added.map((file) => file.name).filter((name) => !names.includes(name)),
+      ]);
+    } catch (error) {
+      setUploadError(error instanceof Error ? error.message : 'Upload failed. Try again.');
+    } finally {
+      setUploading(false);
+    }
   };
   return (
     <div className="space-y-2">
@@ -432,16 +474,22 @@ function FilePicker({ id, field, value, onChange }: ControlProps) {
         )}
       >
         <Upload className="size-5 text-muted-foreground" aria-hidden />
-        <span className="text-[15px] font-medium">Choose files</span>
+        <span className="text-[15px] font-medium">{uploading ? 'Uploading…' : 'Choose files'}</span>
         <span className="text-sm text-muted-foreground">{field.hint ?? 'or drop them here'}</span>
         <input
           id={id}
           type="file"
           multiple
+          disabled={uploading}
           className="sr-only"
           onChange={(e) => add(e.target.files)}
         />
       </label>
+      {uploadError && (
+        <p role="alert" className="text-sm text-destructive">
+          {uploadError}
+        </p>
+      )}
       {names.length > 0 && (
         <ul className="space-y-1.5">
           {names.map((n) => (
@@ -450,7 +498,12 @@ function FilePicker({ id, field, value, onChange }: ControlProps) {
               <span className="flex-1 truncate">{n}</span>
               <button
                 type="button"
-                onClick={() => onChange(names.filter((x) => x !== n))}
+                onClick={() => {
+                  onChange(names.filter((x, index) => index !== names.indexOf(n)));
+                  onUploadsChange?.(
+                    uploads.filter((upload) => !(upload.fieldId === field.id && upload.name === n)),
+                  );
+                }}
                 className="rounded-full p-1 text-muted-foreground hover:bg-background hover:text-foreground"
                 aria-label={`Remove ${n}`}
               >

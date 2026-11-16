@@ -2,3 +2,4 @@
 // implementation. Monday, Google and Slack arrive with task 1.13.
 export * from './email';
 export * from './ai';
+export * from './google-drive';
