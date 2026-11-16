@@ -11,8 +11,8 @@ Prototip je pregledan. Prije nego briefovi idu creative timu, flow treba doradit
 
 **Naše (Vekaz):**
 
-- [ ] W.1 Deploy sljedećeg koraka intakea: polja popunjena iz početnog opisa, a requester ih pregleda i potvrdi prije slanja.
-- [x] W.2 Uklanjanje nepotrebnih AI pitanja na formi koju napravi AI. Svako pitanje ima „×“, uklonjena se mogu vratiti, a bar jedno ostaje. Server prima samo uklanjanje, ne nova ni izmijenjena pitanja. Gotovo u kodu, čeka deploy (W.1).
+- [x] W.1 Deploy sljedećeg koraka intakea: polja popunjena iz početnog opisa, a requester ih pregleda i potvrdi prije slanja. Na stagingu (Vercel) od 16. 11.: polja iz opisa imaju oznaku „From your notes“, a „Check and send“ traži da se pregledaju.
+- [x] W.2 Uklanjanje nepotrebnih AI pitanja na formi koju napravi AI. Svako pitanje ima „×“, uklonjena se mogu vratiti, a bar jedno ostaje. Server prima samo uklanjanje, ne nova ni izmijenjena pitanja. Na stagingu od 16. 11.
 - [ ] W.3 Monday: projekat s taskovima, ne samo jedan item. Uz to lista potrebnih asseta koja se može pratiti, s količinom i dimenzijama (npr. 16 e-commerce bannera). Treba pokriti i assete koji fale u početnom briefu.
 - [ ] W.4 Google Drive integracija: folder projekta u folderu branda, brief PDF i uploadi u `Briefing and Assets`. Kod je spreman, a Shared Drive `Creative Hub (test)` je napravljen na vilorefoods.com. **Blokirano:** org politika zabranjuje ključ za service account `creative-hub-drive@creative-hub-514814.iam.gserviceaccount.com`. Čekamo da njihov admin isključi politiku za projekat `creative-hub-514814`, ili prelazimo na pristup bez ključa. Detalji su u `docs/GOOGLE_DRIVE_TEST.md`.
 - [ ] W.5 Povezati alat s kontekstom iz Mondaya, Drivea i Slacka.
